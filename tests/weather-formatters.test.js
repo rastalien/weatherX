@@ -28,6 +28,7 @@ describe('weather formatters', () => {
     expect(formatHour('2026-04-02T18:35')).toBe('18:35');
     expect(formatWeekday('2026-04-02')).not.toBe('--');
     expect(getWeatherTheme({ time: '2026-04-02T19:15', isDay: true })).toBe('evening');
+    expect(getWeatherTheme({ time: '2026-04-02T18:10', isDay: false })).toBe('evening');
     expect(getWeatherTheme({ time: '2026-04-02T23:10', isDay: false })).toBe('night');
   });
 
