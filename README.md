@@ -79,14 +79,13 @@ Non serve una build vera e propria, ma per eseguire correttamente l'app e consig
 
 ### Avvio Rapido
 
-1. Apri un terminale nella cartella del progetto.
-2. Avvia il server locale:
+Per avviare l'app in locale:
 
 ```bash
 npm start
 ```
 
-3. Apri il browser su `http://localhost:8080`.
+Poi apri il browser su `http://localhost:8080`.
 
 ### Come Clonare Ed Eseguire Il Progetto
 
@@ -97,7 +96,7 @@ npm install
 npm start
 ```
 
-Poi apri il browser su `http://localhost:8080`.
+Infine apri il browser su `http://localhost:8080`.
 
 ### Note
 
