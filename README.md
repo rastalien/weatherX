@@ -88,6 +88,17 @@ npm start
 
 3. Apri il browser su `http://localhost:8080`.
 
+### Come Clonare Ed Eseguire Il Progetto
+
+```bash
+git clone https://github.com/rastalien/weatherX.git
+cd weatherX
+npm install
+npm start
+```
+
+Poi apri il browser su `http://localhost:8080`.
+
 ### Note
 
 - Lo script `npm start` usa `npx http-server -c-1 . -p 8080`.
@@ -306,6 +317,24 @@ Nota importante:
 - Introdurre icone o asset dedicati invece delle emoji
 - Aggiungere supporto multilingua
 - Permettere il salvataggio delle localita preferite
+
+## File Principali
+
+- `index.html`: struttura base della pagina e punto di ingresso dell'app nel browser
+- `css/styles.css`: stile completo dell'interfaccia, temi e responsive
+- `js/app.js`: coordinamento del flusso principale, ricerca, autocomplete, refresh e stato UI
+- `js/api/weatherApi.js`: chiamate alle API Open-Meteo, cache e normalizzazione dei dati
+- `js/features/weather/maps.js`: mapping dei codici meteo in emoji e descrizioni
+- `js/features/weather/dates.js`: formatter per giorni e orari
+- `js/features/weather/units.js`: formatter per temperatura e vento
+- `js/features/weather/theme.js`: scelta del tema giorno, sera o notte
+- `js/shared/place.js`: formattazione e deduplica delle localita
+- `js/shared/errors.js`: trasformazione degli errori tecnici in messaggi leggibili
+- `js/ui/weather-card.js`: rendering del meteo principale
+- `js/ui/forecast.js`: rendering delle sezioni `Meteo prossime ore` e `Meteo prossimi giorni`
+- `js/ui/suggestions.js`: rendering dei suggerimenti automatici durante la digitazione
+- `js/ui/states.js`: rendering degli stati di loading, errore e scelta localita
+- `tests/`: test automatici Vitest per logica, API e rendering DOM
 
 ## Sviluppo
 
