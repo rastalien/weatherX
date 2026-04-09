@@ -1,0 +1,19 @@
+{
+  "name": "weather-app",
+  "version": "1.0.0",
+  "description": "Semplice Weather App usando Open-Meteo",
+  "main": "js/app.js",
+  "type": "module",
+  "scripts": {
+    "start": "npx http-server -c-1 . -p 8080",
+    "test": "vitest run --pool threads",
+    "test:watch": "vitest --pool threads"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "jsdom": "^29.0.1",
+    "vitest": "^4.1.2"
+  }
+}

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.open-meteo.com https://geocoding-api.open-meteo.com; object-src 'none'; base-uri 'self'; form-action 'self';"
+  />
+  <title>Weather App</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <main class="container">
+    <section class="top-bar">
+      <h1>WeatherX</h1>
+
+      <!-- Form per cercare una citta -->
+      <form id="search-form">
+        <div class="search-box">
+          <label class="sr-only" for="location-input">Cerca città</label>
+          <input
+            id="location-input"
+            type="text"
+            placeholder="Inserisci una citta"
+            autocomplete="off"
+            aria-autocomplete="list"
+            aria-expanded="false"
+            aria-controls="location-suggestions"
+          >
+          <div id="location-suggestions" class="suggestions-root" hidden></div>
+        </div>
+        <button id="search-button" type="submit">Cerca</button>
+      </form>
+
+      <div id="temperature-unit-toggle" class="unit-toggle" role="group" aria-label="Unita di temperatura">
+        <button
+          type="button"
+          class="unit-toggle-button is-active"
+          data-unit="celsius"
+          aria-pressed="true"
+          aria-label="Mostra temperature in gradi Celsius"
+        >&deg;C</button>
+        <button
+          type="button"
+          class="unit-toggle-button"
+          data-unit="fahrenheit"
+          aria-pressed="false"
+          aria-label="Mostra temperature in gradi Fahrenheit"
+        >&deg;F</button>
+      </div>
+    </section>
+
+    <section
+      id="weather-root"
+      class="weather-root"
+      aria-live="polite"
+      aria-atomic="true"
+      aria-busy="false"
+    >
+      <!-- Qui JavaScript inserisce dinamicamente il risultato meteo -->
+    </section>
+  </main>
+
+  <!-- File JavaScript principale dell'app -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

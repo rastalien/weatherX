@@ -1,0 +1,505 @@
+import { CONFIG } from './config.js';
+import { formatPlace, dedupePlaces } from './shared/place.js';
+import { geocodeLocation, fetchWeatherByCoords } from './api/weatherApi.js';
+import {
+  renderWeather,
+  renderLocationChoices,
+  renderError,
+  renderLoading,
+  renderSuggestions,
+  clearSuggestions
+} from './ui/index.js';
+import { getUserErrorMessage } from './shared/errors.js';
+import { TEMPERATURE_UNITS } from './features/weather/units.js';
+
+// Riferimenti agli elementi HTML che useremo per leggere input e mostrare output.
+const form = document.getElementById(CONFIG.SELECTORS.form);
+const input = document.getElementById(CONFIG.SELECTORS.input);
+const searchButton = document.getElementById(CONFIG.SELECTORS.searchButton);
+const unitToggle = document.getElementById(CONFIG.SELECTORS.unitToggle);
+const root = document.getElementById(CONFIG.SELECTORS.weatherRoot);
+const suggestionsRoot = document.getElementById('location-suggestions');
+const unitButtons = unitToggle ? Array.from(unitToggle.querySelectorAll('[data-unit]')) : [];
+const TEMPERATURE_UNIT_STORAGE_KEY = 'weatherx.temperatureUnit';
+const AUTOCOMPLETE_MIN_CHARS = 2;
+const AUTOCOMPLETE_DEBOUNCE_MS = 300;
+
+let lastSearchQuery = '';
+let activeSearchId = 0;
+let temperatureUnit = TEMPERATURE_UNITS.CELSIUS;
+// Salviamo l'ultima localita risolta per poter aggiornare il meteo
+// senza dover ripetere la ricerca testuale dal geocoder.
+let lastResolvedPlace = null;
+// Conserviamo anche l'ultimo payload meteo renderizzato, cosi il toggle
+// puo cambiare unita all'istante senza nuove richieste HTTP.
+let latestWeatherData = null;
+let latestPlaceLabel = '';
+let hasRenderedWeather = false;
+let autocompleteTimer = null;
+let activeAutocompleteId = 0;
+let suggestionPlaces = [];
+let activeSuggestionIndex = -1;
+
+function createBootstrapError(message) {
+  const error = new Error(message);
+  error.canRetry = false;
+  return error;
+}
+
+function getMissingBootstrapElements() {
+  return [
+    ['form', form],
+    ['input', input],
+    ['searchButton', searchButton],
+    ['root', root]
+  ].filter(([, element]) => !element).map(([name]) => name);
+}
+
+function assertBootstrapReady() {
+  const missingElements = getMissingBootstrapElements();
+  if (missingElements.length > 0) {
+    throw createBootstrapError(
+      `Bootstrap incompleto: mancano elementi DOM obbligatori (${missingElements.join(', ')}).`
+    );
+  }
+}
+
+function loadSavedTemperatureUnit() {
+  try {
+    const savedUnit = window.localStorage.getItem(TEMPERATURE_UNIT_STORAGE_KEY);
+    if (savedUnit === TEMPERATURE_UNITS.CELSIUS || savedUnit === TEMPERATURE_UNITS.FAHRENHEIT) {
+      return savedUnit;
+    }
+  } catch (err) {
+    // L'app continua a funzionare anche se localStorage non e disponibile.
+    console.warn('Impossibile leggere la preferenza unita dal browser.', err);
+  }
+
+  return TEMPERATURE_UNITS.CELSIUS;
+}
+
+function saveTemperatureUnit(unit) {
+  try {
+    window.localStorage.setItem(TEMPERATURE_UNIT_STORAGE_KEY, unit);
+  } catch (err) {
+    console.warn('Impossibile salvare la preferenza unita nel browser.', err);
+  }
+}
+
+function handleError(err, retryAction = null) {
+  console.error(err);
+  const canRetry = retryAction && err?.canRetry !== false;
+  renderError(root, getUserErrorMessage(err), canRetry ? retryAction : null);
+}
+
+function setBusy(isBusy) {
+  if (!root || !form) {
+    return;
+  }
+
+  // Disabilitiamo form e bottone durante le richieste per evitare submit doppi
+  // e stati incoerenti mentre la UI sta aspettando una risposta di rete.
+  root.setAttribute('aria-busy', String(isBusy));
+  form.querySelectorAll('input, button').forEach((element) => {
+    element.disabled = isBusy;
+  });
+}
+
+function updateSearchButtonLabel() {
+  if (!input || !searchButton) {
+    return;
+  }
+
+  const hasTypedQuery = input.value.trim().length > 0;
+  const canRefresh = !hasTypedQuery && lastResolvedPlace;
+  searchButton.textContent = canRefresh ? 'Aggiorna' : 'Cerca';
+}
+
+function updateInputSuggestionState() {
+  if (!input) return;
+  const hasSuggestions = suggestionPlaces.length > 0;
+  input.setAttribute('aria-expanded', String(hasSuggestions));
+  if (activeSuggestionIndex >= 0) {
+    input.setAttribute('aria-activedescendant', `suggestion-${activeSuggestionIndex}`);
+  } else {
+    input.removeAttribute('aria-activedescendant');
+  }
+}
+
+function updateUnitToggle() {
+  // Aggiorniamo lo stato visivo e accessibile dei due pulsanti del toggle.
+  unitButtons.forEach((button) => {
+    const isActive = button.dataset.unit === temperatureUnit;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-pressed', String(isActive));
+  });
+}
+
+function renderCurrentWeather() {
+  if (!root || !latestWeatherData || !latestPlaceLabel) {
+    return;
+  }
+
+  // Tutto il meteo viene renderizzato partendo dai dati normalizzati in Celsius.
+  // Il renderer si occupa poi di convertirli nell'unita scelta dall'utente.
+  renderWeather(root, latestWeatherData, latestPlaceLabel, { temperatureUnit });
+  hasRenderedWeather = true;
+}
+
+function createSearchId() {
+  // Ogni ricerca ottiene un id crescente. Quando una risposta arriva in ritardo,
+  // possiamo confrontare l'id e ignorare i risultati obsoleti.
+  activeSearchId += 1;
+  return activeSearchId;
+}
+
+function isStaleSearch(searchId) {
+  return searchId !== activeSearchId;
+}
+
+function retryLastSearch() {
+  if (!form || !input || !lastSearchQuery) return;
+  input.value = lastSearchQuery;
+  updateSearchButtonLabel();
+  const evt = new Event('submit', { bubbles: true, cancelable: true });
+  form.dispatchEvent(evt);
+}
+
+function setLastResolvedPlace(lat, lon, label) {
+  // Manteniamo i dati gia risolti della localita corrente per il pulsante "Aggiorna".
+  lastResolvedPlace = { lat, lon, label };
+  updateSearchButtonLabel();
+}
+
+function resetSuggestions() {
+  // Azzeriamo sia la lista visibile sia lo stato accessibile dell'input:
+  // in questo modo tastiera e screen reader non restano collegati a opzioni stale.
+  suggestionPlaces = [];
+  activeSuggestionIndex = -1;
+  clearSuggestions(suggestionsRoot);
+  updateInputSuggestionState();
+}
+
+function showSuggestions(places) {
+  suggestionPlaces = places;
+  activeSuggestionIndex = -1;
+  renderSuggestions(suggestionsRoot, suggestionPlaces, activeSuggestionIndex, handleSuggestionSelection);
+  tagSuggestionOptions();
+  updateInputSuggestionState();
+}
+
+function tagSuggestionOptions() {
+  if (!suggestionsRoot) return;
+  suggestionsRoot.querySelectorAll('[role="option"]').forEach((element, index) => {
+    element.id = `suggestion-${index}`;
+  });
+}
+
+function rerenderSuggestions() {
+  renderSuggestions(suggestionsRoot, suggestionPlaces, activeSuggestionIndex, handleSuggestionSelection);
+  tagSuggestionOptions();
+  updateInputSuggestionState();
+}
+
+function createAutocompleteId() {
+  activeAutocompleteId += 1;
+  return activeAutocompleteId;
+}
+
+function isStaleAutocomplete(autocompleteId) {
+  return autocompleteId !== activeAutocompleteId;
+}
+
+async function handleSuggestionSelection(place) {
+  // La selezione di un suggerimento salta il submit testuale:
+  // abbiamo gia le coordinate e possiamo andare direttamente al fetch meteo.
+  resetSuggestions();
+  input.value = formatPlace(place);
+  lastSearchQuery = formatPlace(place);
+  const searchId = createSearchId();
+  setBusy(true);
+
+  try {
+    await showWeatherForPlace(place.latitude, place.longitude, formatPlace(place), searchId);
+    input.value = '';
+    updateSearchButtonLabel();
+  } catch (err) {
+    if (!isStaleSearch(searchId)) {
+      handleError(err, () => handleSuggestionSelection(place));
+    }
+  } finally {
+    if (!isStaleSearch(searchId)) {
+      setBusy(false);
+    }
+  }
+}
+
+async function loadSuggestions(query, autocompleteId) {
+  const geo = await geocodeLocation(query);
+  if (isStaleAutocomplete(autocompleteId)) return;
+
+  const places = dedupePlaces(geo?.results);
+  if (places.length === 0) {
+    resetSuggestions();
+    return;
+  }
+
+  showSuggestions(places.slice(0, 5));
+}
+
+function scheduleSuggestions() {
+  if (!input) return;
+
+  const query = input.value.trim();
+  if (autocompleteTimer) {
+    clearTimeout(autocompleteTimer);
+    autocompleteTimer = null;
+  }
+
+  if (query.length < AUTOCOMPLETE_MIN_CHARS) {
+    createAutocompleteId();
+    resetSuggestions();
+    return;
+  }
+
+  const autocompleteId = createAutocompleteId();
+  // Debounce leggero: mentre l'utente sta ancora scrivendo non interroghiamo subito il geocoder.
+  autocompleteTimer = window.setTimeout(async () => {
+    try {
+      await loadSuggestions(query, autocompleteId);
+    } catch (err) {
+      if (!isStaleAutocomplete(autocompleteId)) {
+        resetSuggestions();
+      }
+    }
+  }, AUTOCOMPLETE_DEBOUNCE_MS);
+}
+
+/**
+ * Recupera i dati meteo per una posizione gia risolta e aggiorna la UI
+ * solo se la richiesta e ancora quella piu recente.
+ *
+ * @param {number} lat Latitudine della localita selezionata.
+ * @param {number} lon Longitudine della localita selezionata.
+ * @param {string} placeLabel Etichetta leggibile da mostrare nella card meteo.
+ * @param {number} searchId Identificatore della ricerca corrente usato per evitare race condition.
+ * @returns {Promise<void>} Completa il rendering del meteo oppure termina senza effetti se la ricerca e obsoleta.
+ *
+ * @example
+ * await showWeatherForPlace(45.4642, 9.19, 'Milano, Lombardia, Italia', currentSearchId);
+ */
+async function showWeatherForPlace(lat, lon, placeLabel, searchId) {
+  renderLoading(root);
+  const data = await fetchWeatherByCoords(lat, lon);
+  if (isStaleSearch(searchId)) return;
+  setLastResolvedPlace(lat, lon, placeLabel);
+  latestWeatherData = data;
+  latestPlaceLabel = placeLabel;
+  renderWeather(root, latestWeatherData, latestPlaceLabel, {
+    temperatureUnit,
+    focusOnRender: true
+  });
+  hasRenderedWeather = true;
+}
+
+/**
+ * Gestisce il flusso principale di ricerca per nome localita, interroga i servizi esterni
+ * e aggiorna la UI con risultato, errori o lista di scelte.
+ *
+ * @param {number} searchId Identificatore della ricerca corrente per ignorare risposte arrivate in ritardo.
+ * @returns {Promise<void>} Completa il flusso di ricerca e il rendering associato.
+ *
+ * @example
+ * const searchId = createSearchId();
+ * await handleSearch(searchId);
+ */
+async function handleSearch(searchId) {
+  const q = input.value.trim();
+  if (!q) return;
+  lastSearchQuery = q;
+  resetSuggestions();
+
+  // Feedback immediato mentre aspettiamo la risposta delle API.
+  renderLoading(root);
+
+  // Chiamata all'API di geocoding per trovare il luogo richiesto.
+  const geo = await geocodeLocation(q);
+  if (isStaleSearch(searchId)) return;
+  const places = dedupePlaces(geo?.results);
+  if (places.length === 0) {
+    renderError(root, 'Non ho trovato nessuna localita con questo nome.', null);
+    return;
+  }
+
+  // Se troviamo una sola citta mostriamo subito il meteo.
+  // Se i risultati sono piu di uno, chiediamo all'utente quale usare.
+  if (places.length === 1) {
+    const top = places[0];
+    await showWeatherForPlace(top.latitude, top.longitude, formatPlace(top), searchId);
+    input.value = '';
+    updateSearchButtonLabel();
+    return;
+  }
+
+  renderLocationChoices(root, places, async (selectedPlace) => {
+    try {
+      await showWeatherForPlace(
+        selectedPlace.latitude,
+        selectedPlace.longitude,
+        formatPlace(selectedPlace),
+        searchId
+      );
+      input.value = '';
+      updateSearchButtonLabel();
+    } catch (err) {
+      handleError(err, retryLastSearch);
+    }
+  });
+}
+
+/**
+ * Aggiorna i dati meteo per l'ultima localita risolta senza rieseguire il geocoding.
+ *
+ * @param {number} searchId Identificatore della richiesta corrente.
+ * @returns {Promise<void>} Ricarica il meteo dell'ultima localita nota.
+ *
+ * @example
+ * const searchId = createSearchId();
+ * await refreshCurrentWeather(searchId);
+ */
+async function refreshCurrentWeather(searchId) {
+  if (!lastResolvedPlace) return;
+
+  await showWeatherForPlace(
+    lastResolvedPlace.lat,
+    lastResolvedPlace.lon,
+    lastResolvedPlace.label,
+    searchId
+  );
+}
+
+async function loadDefaultWeather() {
+  const { coords, label } = CONFIG.DEFAULT_LOCATION;
+  const searchId = createSearchId();
+  setBusy(true);
+
+  try {
+    input.value = '';
+    lastSearchQuery = '';
+    await showWeatherForPlace(coords.lat, coords.lon, label, searchId);
+  } catch (err) {
+    if (!isStaleSearch(searchId)) {
+      handleError(err, loadDefaultWeather);
+    }
+  } finally {
+    if (!isStaleSearch(searchId)) {
+      setBusy(false);
+    }
+  }
+}
+
+function bindEventListeners() {
+  form.addEventListener('submit', async (e) => {
+    // Evita il refresh della pagina causato dal submit standard del browser.
+    e.preventDefault();
+    const searchId = createSearchId();
+    setBusy(true);
+
+    try {
+      if (input.value.trim()) {
+        await handleSearch(searchId);
+      } else {
+        await refreshCurrentWeather(searchId);
+      }
+    } catch (err) {
+      // Gestione centralizzata degli errori di rete o delle API.
+      if (!isStaleSearch(searchId)) {
+        handleError(err, retryLastSearch);
+      }
+    } finally {
+      if (!isStaleSearch(searchId)) {
+        setBusy(false);
+      }
+    }
+  });
+
+  input.addEventListener('input', () => {
+    updateSearchButtonLabel();
+    scheduleSuggestions();
+  });
+
+  input.addEventListener('keydown', (event) => {
+    if (suggestionPlaces.length === 0) {
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      activeSuggestionIndex = Math.min(activeSuggestionIndex + 1, suggestionPlaces.length - 1);
+      rerenderSuggestions();
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      activeSuggestionIndex = Math.max(activeSuggestionIndex - 1, 0);
+      rerenderSuggestions();
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      resetSuggestions();
+      return;
+    }
+
+    if (event.key === 'Enter' && activeSuggestionIndex >= 0) {
+      event.preventDefault();
+      handleSuggestionSelection(suggestionPlaces[activeSuggestionIndex]);
+    }
+  });
+
+  input.addEventListener('blur', () => {
+    window.setTimeout(() => {
+      resetSuggestions();
+    }, 120);
+  });
+
+  if (unitToggle) {
+    unitToggle.addEventListener('click', (event) => {
+      const target = event.target.closest('[data-unit]');
+      if (!target) return;
+
+      const nextUnit = target.dataset.unit;
+      if (!nextUnit || nextUnit === temperatureUnit) return;
+
+      temperatureUnit = nextUnit;
+      saveTemperatureUnit(temperatureUnit);
+      updateUnitToggle();
+
+      // Se abbiamo gia un meteo a schermo, cambiamo subito unita senza nuove fetch.
+      // In caso contrario lasciamo semplicemente salvata la preferenza per il prossimo render.
+      if (hasRenderedWeather) {
+        renderCurrentWeather();
+      }
+    });
+  }
+}
+
+async function bootstrapApp() {
+  try {
+    assertBootstrapReady();
+    temperatureUnit = loadSavedTemperatureUnit();
+    updateSearchButtonLabel();
+    updateUnitToggle();
+    bindEventListeners();
+    await loadDefaultWeather();
+  } catch (err) {
+    console.error(err);
+
+    if (root) {
+      renderError(root, getUserErrorMessage(err), null);
+    }
+  }
+}
+
+bootstrapApp();
