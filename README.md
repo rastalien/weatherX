@@ -337,21 +337,13 @@ Nota importante:
 
 ## Sviluppo
 
-Le aree principali del codice sono:
+Per orientarti rapidamente nel codice:
 
-- `index.html`: struttura base della pagina
-- `js/app.js`: coordinamento del flusso di ricerca e aggiornamento
-- `js/api/weatherApi.js`: chiamate API, cache e normalizzazione dati
-- `js/features/weather/`: logica e formatter specifici del dominio meteo
-- `js/features/weather/theme.js`: scelta del tema visivo in base all'orario locale della previsione
-- `js/shared/place.js`: formattazione e deduplica localita
-- `js/shared/errors.js`: gestione dei messaggi utente per gli errori
-- `js/ui/weather-card.js`: rendering della card meteo principale
-- `js/ui/forecast.js`: rendering della previsione oraria e giornaliera
-- `js/ui/suggestions.js`: rendering della lista autocomplete delle localita
-- `js/ui/states.js`: rendering di loading, errori e scelta localita
-- `js/ui/index.js`: punto di ingresso del layer UI
-- `tests/`: suite Vitest per logica, layer API e rendering DOM
+- `js/api/` contiene il layer di accesso alle API e la normalizzazione dei dati
+- `js/features/weather/` raccoglie formatter, mapping meteo e logica di tema
+- `js/shared/` contiene utility riusabili trasversali
+- `js/ui/` gestisce il rendering dell'interfaccia e degli stati
+- `tests/` raccoglie la suite Vitest per logica, API e DOM
 
 ## Licenza
 
