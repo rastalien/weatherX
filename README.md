@@ -28,6 +28,8 @@ Il progetto non usa framework o bundler: gira direttamente nel browser tramite E
 - Protezione da race condition tra ricerche consecutive
 - Tema dinamico che cambia tra giorno, sera e notte in base all'orario della localita mostrata
 - Suggerimenti automatici durante la digitazione con selezione via click o tastiera
+- Ripristino automatico dell'ultima localita valida dopo il refresh della pagina
+- Cache ibrida in memoria e persistente con TTL per meteo e geocoding
 
 ## Struttura Del Progetto
 
@@ -42,6 +44,7 @@ weather-app/
 |-- js/
 |   |-- app.js
 |   |-- config.js
+|   |-- runtime-env.js
 |   |-- api/
 |   |   `-- weatherApi.js
 |   |-- features/
@@ -52,6 +55,8 @@ weather-app/
 |   |       `-- units.js
 |   |-- shared/
 |   |   |-- errors.js
+|   |   |-- last-place.js
+|   |   |-- persistent-cache.js
 |   |   `-- place.js
 |   `-- ui/
 |       |-- forecast.js
@@ -60,7 +65,9 @@ weather-app/
 |       |-- states.js
 |       `-- weather-card.js
 |-- tests/
+|   |-- last-place.test.js
 |   |-- place.test.js
+|   |-- persistent-cache.test.js
 |   |-- suggestions-dom.test.js
 |   |-- weather-api.test.js
 |   |-- weather-dom.test.js
@@ -160,10 +167,17 @@ Quando l'input e vuoto e c'e gia una localita caricata, il bottone principale pa
 
 ### Comportamento dell'interfaccia
 
-- All'avvio l'app mostra un esempio predefinito su Roma.
+- All'avvio l'app ripristina l'ultima localita valida salvata nel browser; se non esiste usa la localita di default configurata, inizialmente Roma.
 - Durante le richieste la UI mostra uno stato di caricamento.
 - In caso di errore l'app mostra un messaggio leggibile e, quando possibile, un pulsante per riprovare.
 - Su schermi piccoli alcune etichette del forecast usano una versione piu compatta, mentre su schermi ampi vengono mostrate descrizioni meteo piu complete.
+
+### Persistenza e Cache
+
+- L'ultima localita risolta viene salvata in `localStorage` e riutilizzata dopo un refresh pagina.
+- Il layer API controlla prima una cache in memoria e poi una cache persistente nel browser.
+- Le voci persistenti hanno sempre una scadenza TTL e vengono eliminate quando risultano scadute o non valide.
+- Il meteo e il geocoding restano configurabili via `.env` anche per quanto riguarda i TTL della cache.
 
 ## API Utilizzate
 
@@ -300,9 +314,56 @@ In questo progetto non serve alcuna chiave API.
 
 Quindi:
 
-- non e richiesto un file `.env`
+- non e richiesta alcuna chiave segreta
 - non ci sono token o segreti da configurare
-- gli endpoint pubblici sono definiti in `js/config.js`
+- gli endpoint pubblici possono essere personalizzati tramite `.env`
+
+### Configurazione Tramite `.env`
+
+L'app gira nel browser, quindi non puo leggere direttamente un file `.env`.
+Per questo il progetto include ora uno script Node che, prima di `npm start` e `npm test`, legge `.env` e genera `js/runtime-env.js`.
+
+Per iniziare:
+
+```bash
+cp .env.example .env
+```
+
+Su Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Poi modifica i valori che ti servono e avvia normalmente:
+
+```bash
+npm start
+```
+
+Variabili supportate:
+
+- `WEATHER_DEFAULT_LOCATION_LABEL`
+- `WEATHER_DEFAULT_LAT`
+- `WEATHER_DEFAULT_LON`
+- `WEATHER_FORECAST_API_BASE`
+- `WEATHER_GEOCODING_API_BASE`
+- `WEATHER_LANGUAGE`
+- `WEATHER_TIMEZONE`
+- `WEATHER_GEOCODING_COUNT`
+- `WEATHER_GEOCODING_FORMAT`
+- `WEATHER_CACHE_TTL_WEATHER_MS`
+- `WEATHER_CACHE_TTL_GEOCODING_MS`
+
+Esempio:
+
+```dotenv
+WEATHER_DEFAULT_LOCATION_LABEL=Milano, Lombardia, Italia
+WEATHER_DEFAULT_LAT=45.4642
+WEATHER_DEFAULT_LON=9.19
+WEATHER_LANGUAGE=it
+WEATHER_TIMEZONE=auto
+```
 
 Nota importante:
 
@@ -323,10 +384,13 @@ Nota importante:
 - `css/styles.css`: stile completo dell'interfaccia, temi e responsive
 - `js/app.js`: coordinamento del flusso principale, ricerca, autocomplete, refresh e stato UI
 - `js/api/weatherApi.js`: chiamate alle API Open-Meteo, cache e normalizzazione dei dati
+- `js/runtime-env.js`: configurazione runtime generata automaticamente a partire da `.env`
 - `js/features/weather/maps.js`: mapping dei codici meteo in emoji e descrizioni
 - `js/features/weather/dates.js`: formatter per giorni e orari
 - `js/features/weather/units.js`: formatter per temperatura e vento
 - `js/features/weather/theme.js`: scelta del tema giorno, sera o notte
+- `js/shared/last-place.js`: persistenza e validazione dell'ultima localita mostrata
+- `js/shared/persistent-cache.js`: helper di cache persistente con TTL in `localStorage`
 - `js/shared/place.js`: formattazione e deduplica delle localita
 - `js/shared/errors.js`: trasformazione degli errori tecnici in messaggi leggibili
 - `js/ui/weather-card.js`: rendering del meteo principale

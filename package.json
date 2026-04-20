@@ -5,6 +5,9 @@
   "main": "js/app.js",
   "type": "module",
   "scripts": {
+    "env:generate": "node scripts/generate-runtime-env.mjs",
+    "prestart": "npm run env:generate",
+    "pretest": "npm run env:generate",
     "start": "npx http-server -c-1 . -p 8080",
     "test": "vitest run --pool threads",
     "test:watch": "vitest --pool threads"

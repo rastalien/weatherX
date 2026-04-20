@@ -1,4 +1,6 @@
-export const CONFIG = {
+import { RUNTIME_ENV } from './runtime-env.js';
+
+const DEFAULT_CONFIG = {
   // Posizione iniziale mostrata al primo avvio prima di qualsiasi ricerca utente.
   DEFAULT_LOCATION: {
     label: 'Roma, Lazio, Italia',
@@ -32,5 +34,46 @@ export const CONFIG = {
 
     // "auto" fa adattare il fuso orario alla posizione cercata.
     timezone: 'auto'
+  }
+};
+
+function getStringEnvValue(key, fallback) {
+  const value = RUNTIME_ENV[key];
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback;
+}
+
+function getNumberEnvValue(key, fallback) {
+  const rawValue = RUNTIME_ENV[key];
+  if (rawValue === undefined || rawValue === null || rawValue === '') {
+    return fallback;
+  }
+
+  const parsedValue = Number(rawValue);
+  return Number.isFinite(parsedValue) ? parsedValue : fallback;
+}
+
+export const CONFIG = {
+  ...DEFAULT_CONFIG,
+  DEFAULT_LOCATION: {
+    label: getStringEnvValue('WEATHER_DEFAULT_LOCATION_LABEL', DEFAULT_CONFIG.DEFAULT_LOCATION.label),
+    coords: {
+      lat: getNumberEnvValue('WEATHER_DEFAULT_LAT', DEFAULT_CONFIG.DEFAULT_LOCATION.coords.lat),
+      lon: getNumberEnvValue('WEATHER_DEFAULT_LON', DEFAULT_CONFIG.DEFAULT_LOCATION.coords.lon)
+    }
+  },
+  OPEN_METEO_BASE: getStringEnvValue('WEATHER_FORECAST_API_BASE', DEFAULT_CONFIG.OPEN_METEO_BASE),
+  GEOCODING_API_BASE: getStringEnvValue('WEATHER_GEOCODING_API_BASE', 'https://geocoding-api.open-meteo.com/v1/search'),
+  CACHE_TTL_MS: {
+    weather: getNumberEnvValue('WEATHER_CACHE_TTL_WEATHER_MS', DEFAULT_CONFIG.CACHE_TTL_MS.weather),
+    geocoding: getNumberEnvValue('WEATHER_CACHE_TTL_GEOCODING_MS', DEFAULT_CONFIG.CACHE_TTL_MS.geocoding)
+  },
+  DEFAULT_PARAMS: {
+    ...DEFAULT_CONFIG.DEFAULT_PARAMS,
+    timezone: getStringEnvValue('WEATHER_TIMEZONE', DEFAULT_CONFIG.DEFAULT_PARAMS.timezone)
+  },
+  GEOCODING_PARAMS: {
+    count: getNumberEnvValue('WEATHER_GEOCODING_COUNT', 5),
+    language: getStringEnvValue('WEATHER_LANGUAGE', 'it'),
+    format: getStringEnvValue('WEATHER_GEOCODING_FORMAT', 'json')
   }
 };

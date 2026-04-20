@@ -1,8 +1,11 @@
 import { CONFIG } from '../config.js';
+import { loadPersistentCache, savePersistentCache } from '../shared/persistent-cache.js';
 
 const REQUEST_TIMEOUT_MS = 8000;
 const weatherCache = new Map();
 const geocodingCache = new Map();
+const WEATHER_CACHE_NAMESPACE = 'weatherx.weather';
+const GEOCODING_CACHE_NAMESPACE = 'weatherx.geocoding';
 
 function createAppError(message, userMessage, canRetry = true) {
   const error = new Error(message);
@@ -60,6 +63,29 @@ async function getOrSetCachedValue(cache, key, ttlMs, loader) {
     cache.delete(key);
     throw err;
   }
+}
+
+async function getOrSetHybridCachedValue(cache, namespace, key, ttlMs, loader) {
+  const memoryValue = getCacheEntry(cache, key);
+  if (memoryValue) {
+    return memoryValue.value;
+  }
+
+  // Dopo un refresh la cache in memoria sparisce, quindi proviamo
+  // a riusare la copia persistente se il TTL la considera ancora fresca.
+  const persistentValue = loadPersistentCache(namespace, key);
+  if (persistentValue !== null) {
+    setCacheEntry(cache, key, persistentValue, ttlMs);
+    return persistentValue;
+  }
+
+  return getOrSetCachedValue(cache, key, ttlMs, async () => {
+    const resolvedValue = await loader();
+    // Persistiamo solo il JSON finale risolto: la deduplica delle richieste
+    // concorrenti continua invece a vivere solo nella cache in memoria.
+    savePersistentCache(namespace, key, resolvedValue, ttlMs);
+    return resolvedValue;
+  });
 }
 
 function buildWeatherCacheKey(lat, lon) {
@@ -273,8 +299,9 @@ export const __test__ = {
 export async function fetchWeatherByCoords(lat, lon) {
   const cacheKey = buildWeatherCacheKey(lat, lon);
 
-  return getOrSetCachedValue(
+  return getOrSetHybridCachedValue(
     weatherCache,
+    WEATHER_CACHE_NAMESPACE,
     cacheKey,
     CONFIG.CACHE_TTL_MS.weather,
     async () => {
@@ -307,14 +334,20 @@ export async function fetchWeatherByCoords(lat, lon) {
 export async function geocodeLocation(query) {
   const cacheKey = buildGeocodingCacheKey(query);
 
-  return getOrSetCachedValue(
+  return getOrSetHybridCachedValue(
     geocodingCache,
+    GEOCODING_CACHE_NAMESPACE,
     cacheKey,
     CONFIG.CACHE_TTL_MS.geocoding,
     async () => {
-      // Codifica il testo per inserirlo in sicurezza nell'URL.
-      const q = encodeURIComponent(query);
-      const url = `https://geocoding-api.open-meteo.com/v1/search?name=${q}&count=5&language=it&format=json`;
+      const params = new URLSearchParams({
+        name: query,
+        count: String(CONFIG.GEOCODING_PARAMS.count),
+        language: CONFIG.GEOCODING_PARAMS.language,
+        format: CONFIG.GEOCODING_PARAMS.format
+      });
+
+      const url = `${CONFIG.GEOCODING_API_BASE}?${params.toString()}`;
       const data = await fetchJson(url, 'Geocoding');
 
       // Alcune ricerche possono non restituire results: in quel caso lasciamo decidere ad app.js.

@@ -11,6 +11,7 @@ import {
 } from './ui/index.js';
 import { getUserErrorMessage } from './shared/errors.js';
 import { TEMPERATURE_UNITS } from './features/weather/units.js';
+import { clearSavedResolvedPlace, loadSavedResolvedPlace, saveResolvedPlace } from './shared/last-place.js';
 
 // Riferimenti agli elementi HTML che useremo per leggere input e mostrare output.
 const form = document.getElementById(CONFIG.SELECTORS.form);
@@ -168,6 +169,7 @@ function retryLastSearch() {
 function setLastResolvedPlace(lat, lon, label) {
   // Manteniamo i dati gia risolti della localita corrente per il pulsante "Aggiorna".
   lastResolvedPlace = { lat, lon, label };
+  saveResolvedPlace(lastResolvedPlace);
   updateSearchButtonLabel();
 }
 
@@ -379,16 +381,29 @@ async function refreshCurrentWeather(searchId) {
 }
 
 async function loadDefaultWeather() {
-  const { coords, label } = CONFIG.DEFAULT_LOCATION;
+  // Al bootstrap proviamo prima a ripristinare l'ultima localita valida vista.
+  // Solo se manca o non e piu valida ricadiamo sulla localita di default configurata.
+  const savedPlace = loadSavedResolvedPlace();
+  const fallbackPlace = {
+    lat: CONFIG.DEFAULT_LOCATION.coords.lat,
+    lon: CONFIG.DEFAULT_LOCATION.coords.lon,
+    label: CONFIG.DEFAULT_LOCATION.label
+  };
+  const initialPlace = savedPlace ?? fallbackPlace;
   const searchId = createSearchId();
   setBusy(true);
 
   try {
     input.value = '';
     lastSearchQuery = '';
-    await showWeatherForPlace(coords.lat, coords.lon, label, searchId);
+    await showWeatherForPlace(initialPlace.lat, initialPlace.lon, initialPlace.label, searchId);
   } catch (err) {
     if (!isStaleSearch(searchId)) {
+      // Se la localita salvata nel browser e corrotta o non piu caricabile,
+      // la rimuoviamo per evitare tentativi falliti anche al prossimo refresh.
+      if (savedPlace) {
+        clearSavedResolvedPlace();
+      }
       handleError(err, loadDefaultWeather);
     }
   } finally {
