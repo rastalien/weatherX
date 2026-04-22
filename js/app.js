@@ -12,6 +12,7 @@ import {
 import { getUserErrorMessage } from './shared/errors.js';
 import { TEMPERATURE_UNITS } from './features/weather/units.js';
 import { clearSavedResolvedPlace, loadSavedResolvedPlace, saveResolvedPlace } from './shared/last-place.js';
+import { isFavoritePlace, loadFavoritePlaces, saveFavoritePlaces, toggleFavoritePlace } from './shared/favorites.js';
 
 // Riferimenti agli elementi HTML che useremo per leggere input e mostrare output.
 const form = document.getElementById(CONFIG.SELECTORS.form);
@@ -19,11 +20,14 @@ const input = document.getElementById(CONFIG.SELECTORS.input);
 const searchButton = document.getElementById(CONFIG.SELECTORS.searchButton);
 const unitToggle = document.getElementById(CONFIG.SELECTORS.unitToggle);
 const root = document.getElementById(CONFIG.SELECTORS.weatherRoot);
+const favoritesRoot = document.getElementById(CONFIG.SELECTORS.favoritesRoot);
+const mobileFavoritesRoot = document.getElementById(CONFIG.SELECTORS.mobileFavoritesRoot);
 const suggestionsRoot = document.getElementById('location-suggestions');
 const unitButtons = unitToggle ? Array.from(unitToggle.querySelectorAll('[data-unit]')) : [];
 const TEMPERATURE_UNIT_STORAGE_KEY = 'weatherx.temperatureUnit';
 const AUTOCOMPLETE_MIN_CHARS = 2;
 const AUTOCOMPLETE_DEBOUNCE_MS = 300;
+const DESKTOP_SUGGESTION_MEDIA_QUERY = '(min-width: 721px)';
 
 let lastSearchQuery = '';
 let activeSearchId = 0;
@@ -40,6 +44,7 @@ let autocompleteTimer = null;
 let activeAutocompleteId = 0;
 let suggestionPlaces = [];
 let activeSuggestionIndex = -1;
+let favoritePlaces = [];
 
 function createBootstrapError(message) {
   const error = new Error(message);
@@ -87,6 +92,75 @@ function saveTemperatureUnit(unit) {
   }
 }
 
+function createSidebarButton(place, extraClassName = '') {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `sidebar-place-button${extraClassName ? ` ${extraClassName}` : ''}`;
+  button.textContent = place.label;
+  button.setAttribute('aria-label', `Mostra il meteo per ${place.label}`);
+
+  // Evidenziamo la localita attualmente caricata, cosi nella sidebar
+  // resta sempre chiaro quale meteo stiamo guardando in questo momento.
+  if (
+    lastResolvedPlace
+    && lastResolvedPlace.label === place.label
+    && lastResolvedPlace.lat === place.lat
+    && lastResolvedPlace.lon === place.lon
+  ) {
+    button.classList.add('is-active');
+  }
+
+  button.addEventListener('click', () => {
+    void handleSidebarPlaceSelection(place);
+  });
+
+  return button;
+}
+
+function renderFavoriteList(targetRoot, emptyMessage) {
+  if (!targetRoot) {
+    return;
+  }
+
+  targetRoot.innerHTML = '';
+
+  if (favoritePlaces.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'sidebar-empty';
+    empty.textContent = emptyMessage;
+    targetRoot.appendChild(empty);
+    return;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'sidebar-place-list';
+  // Su desktop la sidebar diventa il punto di rientro rapido per le localita
+  // salvate: ogni voce ricarica direttamente il meteo senza nuovo geocoding.
+  favoritePlaces.forEach((place) => {
+    list.appendChild(createSidebarButton(place));
+  });
+  targetRoot.appendChild(list);
+}
+
+function renderFavoritesPanel() {
+  renderFavoriteList(
+    favoritesRoot,
+    'Salva una localita dalla card meteo per ritrovarla qui.'
+  );
+}
+
+function renderMobileFavoritesPanel() {
+  renderFavoriteList(
+    mobileFavoritesRoot,
+    'Salva una localita dalla card meteo per ritrovarla anche qui su mobile.'
+  );
+}
+
+function renderSidebarPanels() {
+  renderFavoritesPanel();
+  renderMobileFavoritesPanel();
+}
+
 function handleError(err, retryAction = null) {
   console.error(err);
   const canRetry = retryAction && err?.canRetry !== false;
@@ -125,6 +199,13 @@ function updateInputSuggestionState() {
   } else {
     input.removeAttribute('aria-activedescendant');
   }
+
+  // Su desktop, quando la tendina suggerimenti e aperta, togliamo temporaneamente
+  // il pannello preferiti per lasciare piu spazio visivo alla ricerca attiva.
+  if (document.body) {
+    const shouldHideFavorites = hasSuggestions && window.matchMedia(DESKTOP_SUGGESTION_MEDIA_QUERY).matches;
+    document.body.classList.toggle('is-searching-desktop', shouldHideFavorites);
+  }
 }
 
 function updateUnitToggle() {
@@ -143,7 +224,11 @@ function renderCurrentWeather() {
 
   // Tutto il meteo viene renderizzato partendo dai dati normalizzati in Celsius.
   // Il renderer si occupa poi di convertirli nell'unita scelta dall'utente.
-  renderWeather(root, latestWeatherData, latestPlaceLabel, { temperatureUnit });
+  renderWeather(root, latestWeatherData, latestPlaceLabel, {
+    temperatureUnit,
+    isFavorite: lastResolvedPlace ? isFavoritePlace(lastResolvedPlace, favoritePlaces) : false,
+    onToggleFavorite: lastResolvedPlace ? handleFavoriteToggle : null
+  });
   hasRenderedWeather = true;
 }
 
@@ -170,7 +255,50 @@ function setLastResolvedPlace(lat, lon, label) {
   // Manteniamo i dati gia risolti della localita corrente per il pulsante "Aggiorna".
   lastResolvedPlace = { lat, lon, label };
   saveResolvedPlace(lastResolvedPlace);
+  renderSidebarPanels();
   updateSearchButtonLabel();
+}
+
+function persistFavoritePlaces(nextFavorites) {
+  // Manteniamo un unico punto di sincronizzazione tra stato in memoria,
+  // localStorage e pannello laterale, cosi la UI resta coerente subito.
+  favoritePlaces = nextFavorites;
+  saveFavoritePlaces(favoritePlaces);
+  renderSidebarPanels();
+}
+
+function handleFavoriteToggle() {
+  if (!lastResolvedPlace) {
+    return;
+  }
+
+  persistFavoritePlaces(toggleFavoritePlace(lastResolvedPlace, favoritePlaces));
+  if (hasRenderedWeather) {
+    renderCurrentWeather();
+  }
+}
+
+async function handleSidebarPlaceSelection(place) {
+  const searchId = createSearchId();
+  setBusy(true);
+
+  try {
+    // Le voci della sidebar hanno gia label e coordinate affidabili:
+    // possiamo saltare il geocoding e andare direttamente al fetch meteo.
+    resetSuggestions();
+    input.value = '';
+    lastSearchQuery = place.label;
+    await showWeatherForPlace(place.lat, place.lon, place.label, searchId);
+    updateSearchButtonLabel();
+  } catch (err) {
+    if (!isStaleSearch(searchId)) {
+      handleError(err, () => handleSidebarPlaceSelection(place));
+    }
+  } finally {
+    if (!isStaleSearch(searchId)) {
+      setBusy(false);
+    }
+  }
 }
 
 function resetSuggestions() {
@@ -299,6 +427,8 @@ async function showWeatherForPlace(lat, lon, placeLabel, searchId) {
   latestPlaceLabel = placeLabel;
   renderWeather(root, latestWeatherData, latestPlaceLabel, {
     temperatureUnit,
+    isFavorite: isFavoritePlace({ lat, lon, label: placeLabel }, favoritePlaces),
+    onToggleFavorite: handleFavoriteToggle,
     focusOnRender: true
   });
   hasRenderedWeather = true;
@@ -504,8 +634,10 @@ async function bootstrapApp() {
   try {
     assertBootstrapReady();
     temperatureUnit = loadSavedTemperatureUnit();
+    favoritePlaces = loadFavoritePlaces();
     updateSearchButtonLabel();
     updateUnitToggle();
+    renderSidebarPanels();
     bindEventListeners();
     await loadDefaultWeather();
   } catch (err) {

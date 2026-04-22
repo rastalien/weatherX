@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getUpcomingHourlyForecast, renderWeather } from '../js/ui/index.js';
 import { TEMPERATURE_UNITS } from '../js/features/weather/units.js';
 
@@ -77,6 +77,22 @@ describe('weather DOM rendering', () => {
     expect(root.textContent).toContain('Umidita');
     expect(root.textContent).toContain('Vento 12 km/h NE');
     expect(document.documentElement.dataset.theme).toBe('evening');
+  });
+
+  it('mostra il toggle preferiti e richiama la callback associata', () => {
+    const root = document.createElement('div');
+    const onToggleFavorite = vi.fn();
+    document.body.appendChild(root);
+
+    renderWeather(root, sampleWeatherData, 'Roma, Lazio, Italia', {
+      isFavorite: true,
+      onToggleFavorite
+    });
+
+    const favoriteButton = root.querySelector('.favorite-toggle');
+    expect(favoriteButton?.textContent).toContain('Salvata');
+    favoriteButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onToggleFavorite).toHaveBeenCalledOnce();
   });
 
   it('renderizza le sezioni oraria e giornaliera con gli elementi attesi', () => {

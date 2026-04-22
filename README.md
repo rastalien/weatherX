@@ -12,6 +12,7 @@ WeatherX e una piccola app frontend scritta in HTML, CSS e JavaScript modulare. 
 - mostra `Meteo prossimi giorni` in una lista piu dettagliata
 - gestisce ricerche ambigue con una scelta manuale della localita corretta
 - permette di aggiornare rapidamente i dati dell'ultima localita visualizzata
+- permette di salvare localita preferite e riaprirle rapidamente
 
 Il progetto non usa framework o bundler: gira direttamente nel browser tramite ES modules.
 
@@ -30,6 +31,7 @@ Il progetto non usa framework o bundler: gira direttamente nel browser tramite E
 - Suggerimenti automatici durante la digitazione con selezione via click o tastiera
 - Ripristino automatico dell'ultima localita valida dopo il refresh della pagina
 - Cache ibrida in memoria e persistente con TTL per meteo e geocoding
+- Localita preferite persistenti con accesso rapido da desktop e mobile
 
 ## Struttura Del Progetto
 
@@ -55,6 +57,7 @@ weather-app/
 |   |       `-- units.js
 |   |-- shared/
 |   |   |-- errors.js
+|   |   |-- favorites.js
 |   |   |-- last-place.js
 |   |   |-- persistent-cache.js
 |   |   `-- place.js
@@ -65,6 +68,7 @@ weather-app/
 |       |-- states.js
 |       `-- weather-card.js
 |-- tests/
+|   |-- favorites.test.js
 |   |-- last-place.test.js
 |   |-- place.test.js
 |   |-- persistent-cache.test.js
@@ -165,9 +169,20 @@ La selezione di un suggerimento usa direttamente le coordinate restituite dal ge
 
 Quando l'input e vuoto e c'e gia una localita caricata, il bottone principale passa da `Cerca` a `Aggiorna`. In questo caso l'app ricarica i dati meteo senza rifare il geocoding.
 
+### Localita Preferite
+
+Dalla card meteo principale puoi salvare o rimuovere la localita corrente dai preferiti.
+
+- su desktop i preferiti compaiono in una sezione laterale dedicata
+- durante la digitazione dei suggerimenti su desktop, il pannello preferiti si nasconde temporaneamente per lasciare piu spazio alla ricerca
+- su mobile i preferiti restano disponibili in una sezione dedicata sotto il pannello di ricerca
+- ogni preferito salvato conserva label e coordinate, quindi al click il meteo viene caricato direttamente senza nuovo geocoding
+
 ### Comportamento dell'interfaccia
 
 - All'avvio l'app ripristina l'ultima localita valida salvata nel browser; se non esiste usa la localita di default configurata, inizialmente Roma.
+- Su schermi desktop l'interfaccia usa una sidebar con ricerca, selezione unita e localita preferite.
+- Su tablet e mobile il layout passa a una colonna singola senza barra laterale fissa.
 - Durante le richieste la UI mostra uno stato di caricamento.
 - In caso di errore l'app mostra un messaggio leggibile e, quando possibile, un pulsante per riprovare.
 - Su schermi piccoli alcune etichette del forecast usano una versione piu compatta, mentre su schermi ampi vengono mostrate descrizioni meteo piu complete.
@@ -376,7 +391,7 @@ Nota importante:
 - Mostrare piu dettagli meteo, ad esempio pressione, alba e tramonto
 - Introdurre icone o asset dedicati invece delle emoji
 - Aggiungere supporto multilingua
-- Permettere il salvataggio delle localita preferite
+- Migliorare il riordino o la gestione avanzata delle localita preferite
 
 ## File Principali
 
@@ -389,6 +404,7 @@ Nota importante:
 - `js/features/weather/dates.js`: formatter per giorni e orari
 - `js/features/weather/units.js`: formatter per temperatura e vento
 - `js/features/weather/theme.js`: scelta del tema giorno, sera o notte
+- `js/shared/favorites.js`: persistenza, deduplica e toggle delle localita preferite
 - `js/shared/last-place.js`: persistenza e validazione dell'ultima localita mostrata
 - `js/shared/persistent-cache.js`: helper di cache persistente con TTL in `localStorage`
 - `js/shared/place.js`: formattazione e deduplica delle localita

@@ -29,6 +29,41 @@ function createDetailItem(label, value) {
   return item;
 }
 
+function createFavoriteButton(isFavorite, onToggleFavorite, placeLabel) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `favorite-toggle${isFavorite ? ' is-active' : ''}`;
+  button.setAttribute('aria-pressed', String(isFavorite));
+  button.setAttribute(
+    'aria-label',
+    isFavorite
+      ? `Rimuovi ${placeLabel} dalle localita preferite`
+      : `Salva ${placeLabel} tra le localita preferite`
+  );
+
+  const icon = document.createElement('span');
+  icon.className = 'favorite-toggle-icon';
+  icon.textContent = isFavorite ? '★' : '☆';
+  icon.setAttribute('aria-hidden', 'true');
+
+  const label = document.createElement('span');
+  label.className = 'favorite-toggle-label';
+  label.textContent = isFavorite ? 'Salvata' : 'Salva';
+
+  button.appendChild(icon);
+  button.appendChild(label);
+
+  // La card non decide come salvare o rimuovere una localita:
+  // espone solo l'interazione e delega il comportamento ad app.js.
+  if (typeof onToggleFavorite === 'function') {
+    button.addEventListener('click', onToggleFavorite);
+  } else {
+    button.disabled = true;
+  }
+
+  return button;
+}
+
 export function renderWeather(root, data, placeLabel, options = {}) {
   // Svuotiamo il contenitore per sostituire l'eventuale risultato precedente.
   root.innerHTML = '';
@@ -36,6 +71,8 @@ export function renderWeather(root, data, placeLabel, options = {}) {
   // In questo modo possiamo cambiare visualizzazione senza toccare la logica API.
   const temperatureUnit = options.temperatureUnit || TEMPERATURE_UNITS.CELSIUS;
   const shouldFocusCard = options.focusOnRender === true;
+  const isFavorite = options.isFavorite === true;
+  const onToggleFavorite = options.onToggleFavorite ?? null;
   const card = document.createElement('section');
   card.className = 'card';
   card.setAttribute('aria-label', `Meteo attuale per ${placeLabel}`);
@@ -54,6 +91,8 @@ export function renderWeather(root, data, placeLabel, options = {}) {
 
   const col1 = document.createElement('div');
   col1.className = 'weather-main-content';
+  const cardHeader = document.createElement('div');
+  cardHeader.className = 'card-header';
   const place = document.createElement('div');
   place.className = 'place-label';
   place.textContent = placeLabel;
@@ -125,7 +164,11 @@ export function renderWeather(root, data, placeLabel, options = {}) {
     details.appendChild(createDetailItem('Umidita', `${humidity}%`));
   }
 
-  col1.appendChild(place);
+  // Nel nuovo header teniamo vicini contesto e azione primaria:
+  // nome localita a sinistra, salvataggio tra i preferiti a destra.
+  cardHeader.appendChild(place);
+  cardHeader.appendChild(createFavoriteButton(isFavorite, onToggleFavorite, placeLabel));
+  col1.appendChild(cardHeader);
   col1.appendChild(currentLabel);
   headline.appendChild(icon);
   headline.appendChild(temp);

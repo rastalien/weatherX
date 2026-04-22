@@ -15,7 +15,9 @@ const DEFAULT_CONFIG = {
     input: 'location-input',
     searchButton: 'search-button',
     unitToggle: 'temperature-unit-toggle',
-    weatherRoot: 'weather-root'
+    weatherRoot: 'weather-root',
+    favoritesRoot: 'favorites-root',
+    mobileFavoritesRoot: 'mobile-favorites-root'
   },
   OPEN_METEO_BASE: 'https://api.open-meteo.com/v1/forecast',
   CACHE_TTL_MS: {

@@ -11,58 +11,77 @@
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-  <main class="container">
-    <section class="top-bar">
-      <h1>WeatherX</h1>
+  <main class="container app-shell">
+    <aside class="sidebar">
+      <section class="sidebar-card top-bar">
+        <div class="brand-block">
+          <p class="brand-kicker">Meteo personale</p>
 
-      <!-- Form per cercare una citta -->
-      <form id="search-form">
-        <div class="search-box">
-          <label class="sr-only" for="location-input">Cerca città</label>
-          <input
-            id="location-input"
-            type="text"
-            placeholder="Inserisci una citta"
-            autocomplete="off"
-            aria-autocomplete="list"
-            aria-expanded="false"
-            aria-controls="location-suggestions"
-          >
-          <div id="location-suggestions" class="suggestions-root" hidden></div>
+          <div id="temperature-unit-toggle" class="unit-toggle" role="group" aria-label="Unita di temperatura">
+            <button
+              type="button"
+              class="unit-toggle-button is-active"
+              data-unit="celsius"
+              aria-pressed="true"
+              aria-label="Mostra temperature in gradi Celsius"
+            >&deg;C</button>
+            <button
+              type="button"
+              class="unit-toggle-button"
+              data-unit="fahrenheit"
+              aria-pressed="false"
+              aria-label="Mostra temperature in gradi Fahrenheit"
+            >&deg;F</button>
+          </div>
         </div>
-        <button id="search-button" type="submit">Cerca</button>
-      </form>
 
-      <div id="temperature-unit-toggle" class="unit-toggle" role="group" aria-label="Unita di temperatura">
-        <button
-          type="button"
-          class="unit-toggle-button is-active"
-          data-unit="celsius"
-          aria-pressed="true"
-          aria-label="Mostra temperature in gradi Celsius"
-        >&deg;C</button>
-        <button
-          type="button"
-          class="unit-toggle-button"
-          data-unit="fahrenheit"
-          aria-pressed="false"
-          aria-label="Mostra temperature in gradi Fahrenheit"
-        >&deg;F</button>
-      </div>
-    </section>
+        <form id="search-form">
+          <div class="search-box">
+            <label class="sr-only" for="location-input">Cerca citta</label>
+            <input
+              id="location-input"
+              type="text"
+              placeholder="Inserisci una citta"
+              autocomplete="off"
+              aria-autocomplete="list"
+              aria-expanded="false"
+              aria-controls="location-suggestions"
+            >
+            <div id="location-suggestions" class="suggestions-root" hidden></div>
+          </div>
+          <button id="search-button" type="submit">Cerca</button>
+        </form>
+      </section>
 
-    <section
-      id="weather-root"
-      class="weather-root"
-      aria-live="polite"
-      aria-atomic="true"
-      aria-busy="false"
-    >
-      <!-- Qui JavaScript inserisce dinamicamente il risultato meteo -->
+      <section class="sidebar-card favorites-panel desktop-only" aria-labelledby="favorites-title">
+        <div class="sidebar-section-header">
+          <h2 id="favorites-title" class="sidebar-title">Preferite</h2>
+          <p class="sidebar-copy">Le localita salvate restano sempre a portata di click.</p>
+        </div>
+        <div id="favorites-root" class="favorites-root"></div>
+      </section>
+
+      <section class="sidebar-card favorites-panel mobile-only" aria-labelledby="mobile-favorites-title">
+        <div class="sidebar-section-header">
+          <h2 id="mobile-favorites-title" class="sidebar-title">Preferite</h2>
+          <p class="sidebar-copy">Anche da mobile puoi riaprire al volo le localita salvate.</p>
+        </div>
+        <div id="mobile-favorites-root" class="mobile-favorites-root"></div>
+      </section>
+    </aside>
+
+    <section class="content-panel">
+      <section
+        id="weather-root"
+        class="weather-root"
+        aria-live="polite"
+        aria-atomic="true"
+        aria-busy="false"
+      >
+      </section>
     </section>
   </main>
 
-  <!-- File JavaScript principale dell'app -->
   <script type="module" src="js/app.js"></script>
 </body>
 </html>
