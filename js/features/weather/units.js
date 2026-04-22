@@ -55,6 +55,8 @@ export function formatWindSpeed(value, unit = TEMPERATURE_UNITS.CELSIUS) {
   }
 
   if (unit === TEMPERATURE_UNITS.FAHRENHEIT) {
+    // Quando l'utente sceglie Fahrenheit adattiamo anche la velocita del vento
+    // a mph, cosi il toggle resta coerente con l'aspettativa locale.
     const mphValue = Math.round(value * 0.621371);
     return `${mphValue} mph`;
   }

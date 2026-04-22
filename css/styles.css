@@ -1349,6 +1349,33 @@ body.is-searching-desktop .favorites-panel.desktop-only{
   display:none;
 }
 
+.feedback-root{
+  position:fixed;
+  left:50%;
+  bottom:1.35rem;
+  z-index:40;
+  max-width:min(92vw, 420px);
+  padding:.78rem 1rem;
+  border-radius:16px;
+  background:color-mix(in srgb, var(--card) 90%, transparent);
+  border:1px solid color-mix(in srgb, var(--accent) 16%, var(--border));
+  color:var(--text);
+  box-shadow:0 16px 38px rgba(15,23,42,0.16);
+  backdrop-filter:blur(12px);
+  transform:translate(-50%, 1rem);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .2s ease, transform .2s ease;
+  text-align:center;
+  font-size:.92rem;
+  font-weight:650;
+}
+
+.feedback-root.is-visible{
+  opacity:1;
+  transform:translate(-50%, 0);
+}
+
 .card-header{
   width:100%;
   display:flex;
@@ -1434,6 +1461,12 @@ body.is-searching-desktop .favorites-panel.desktop-only{
 }
 
 @media (max-width: 520px){
+  .feedback-root{
+    bottom:1rem;
+    padding:.72rem .86rem;
+    font-size:.86rem;
+  }
+
   .favorite-toggle{
     padding:.42rem .5rem;
     min-width:auto;

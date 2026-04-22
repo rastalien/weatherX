@@ -17,7 +17,8 @@ const DEFAULT_CONFIG = {
     unitToggle: 'temperature-unit-toggle',
     weatherRoot: 'weather-root',
     favoritesRoot: 'favorites-root',
-    mobileFavoritesRoot: 'mobile-favorites-root'
+    mobileFavoritesRoot: 'mobile-favorites-root',
+    feedbackRoot: 'feedback-root'
   },
   OPEN_METEO_BASE: 'https://api.open-meteo.com/v1/forecast',
   CACHE_TTL_MS: {
@@ -40,6 +41,8 @@ const DEFAULT_CONFIG = {
 };
 
 function getStringEnvValue(key, fallback) {
+  // La config runtime arriva da un file generato: qui normalizziamo valori vuoti
+  // o mancanti per evitare condizioni speciali sparse nel resto dell'app.
   const value = RUNTIME_ENV[key];
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback;
 }
@@ -63,6 +66,8 @@ export const CONFIG = {
       lon: getNumberEnvValue('WEATHER_DEFAULT_LON', DEFAULT_CONFIG.DEFAULT_LOCATION.coords.lon)
     }
   },
+  // Gli endpoint restano pubblici e configurabili: questo aiuta test locali,
+  // proxy futuri o eventuali varianti dell'ambiente senza toccare il codice app.
   OPEN_METEO_BASE: getStringEnvValue('WEATHER_FORECAST_API_BASE', DEFAULT_CONFIG.OPEN_METEO_BASE),
   GEOCODING_API_BASE: getStringEnvValue('WEATHER_GEOCODING_API_BASE', 'https://geocoding-api.open-meteo.com/v1/search'),
   CACHE_TTL_MS: {
@@ -73,6 +78,8 @@ export const CONFIG = {
     ...DEFAULT_CONFIG.DEFAULT_PARAMS,
     timezone: getStringEnvValue('WEATHER_TIMEZONE', DEFAULT_CONFIG.DEFAULT_PARAMS.timezone)
   },
+  // Teniamo separati i parametri di geocoding per poterli riusare sia
+  // nel fetch che nella documentazione/configurazione senza duplicazioni.
   GEOCODING_PARAMS: {
     count: getNumberEnvValue('WEATHER_GEOCODING_COUNT', 5),
     language: getStringEnvValue('WEATHER_LANGUAGE', 'it'),

@@ -22,6 +22,7 @@ const unitToggle = document.getElementById(CONFIG.SELECTORS.unitToggle);
 const root = document.getElementById(CONFIG.SELECTORS.weatherRoot);
 const favoritesRoot = document.getElementById(CONFIG.SELECTORS.favoritesRoot);
 const mobileFavoritesRoot = document.getElementById(CONFIG.SELECTORS.mobileFavoritesRoot);
+const feedbackRoot = document.getElementById(CONFIG.SELECTORS.feedbackRoot);
 const suggestionsRoot = document.getElementById('location-suggestions');
 const unitButtons = unitToggle ? Array.from(unitToggle.querySelectorAll('[data-unit]')) : [];
 const TEMPERATURE_UNIT_STORAGE_KEY = 'weatherx.temperatureUnit';
@@ -45,6 +46,7 @@ let activeAutocompleteId = 0;
 let suggestionPlaces = [];
 let activeSuggestionIndex = -1;
 let favoritePlaces = [];
+let feedbackTimer = null;
 
 function createBootstrapError(message) {
   const error = new Error(message);
@@ -90,6 +92,24 @@ function saveTemperatureUnit(unit) {
   } catch (err) {
     console.warn('Impossibile salvare la preferenza unita nel browser.', err);
   }
+}
+
+function showFeedback(message) {
+  if (!feedbackRoot) {
+    return;
+  }
+
+  if (feedbackTimer) {
+    window.clearTimeout(feedbackTimer);
+    feedbackTimer = null;
+  }
+
+  feedbackRoot.textContent = message;
+  feedbackRoot.classList.add('is-visible');
+
+  feedbackTimer = window.setTimeout(() => {
+    feedbackRoot.classList.remove('is-visible');
+  }, 2200);
 }
 
 function createSidebarButton(place, extraClassName = '') {
@@ -272,7 +292,13 @@ function handleFavoriteToggle() {
     return;
   }
 
+  const wasFavorite = isFavoritePlace(lastResolvedPlace, favoritePlaces);
   persistFavoritePlaces(toggleFavoritePlace(lastResolvedPlace, favoritePlaces));
+  showFeedback(
+    wasFavorite
+      ? `${lastResolvedPlace.label} rimossa dai preferiti.`
+      : `${lastResolvedPlace.label} aggiunta ai preferiti.`
+  );
   if (hasRenderedWeather) {
     renderCurrentWeather();
   }

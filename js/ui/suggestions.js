@@ -42,6 +42,8 @@ export function renderSuggestions(container, places, activeIndex, onSelect) {
 
 export function clearSuggestions(container) {
   if (!container) return;
+  // Nascondere il contenitore evita che screen reader e tastiera continuino
+  // a percepire una lista suggestioni che in realta non e piu disponibile.
   container.innerHTML = '';
   container.hidden = true;
 }

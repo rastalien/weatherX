@@ -24,6 +24,8 @@ function getDailyTemperatureScale(items) {
 
   return {
     min: globalMin,
+    // `spread` non va mai a zero: anche con temperature quasi identiche
+    // manteniamo una barra visibile e una formula stabile per il rendering.
     max: globalMax,
     spread: Math.max(1, globalMax - globalMin)
   };
@@ -68,6 +70,8 @@ function renderTemperatureRange(minTemp, maxTemp, temperatureUnit, scale) {
 
 function getCurrentForecastItem(data, currentTime) {
   if (data.current && data.current.temperature !== undefined && data.current.weatherCode !== undefined) {
+    // La sezione oraria parte sempre dal "presente", anche se l'API oraria
+    // ha il primo slot utile qualche minuto o un'ora dopo.
     return {
       label: 'Adesso',
       time: currentTime,
@@ -198,6 +202,8 @@ export function renderHourlyForecast(items, temperatureUnit) {
 export function renderDailyForecast(items, temperatureUnit) {
   const section = document.createElement('section');
   section.className = 'daily-forecast';
+  // Calcoliamo una scala comune a tutti i giorni visibili, cosi le barre
+  // min/max sono confrontabili tra loro e non solo dentro la singola riga.
   const temperatureScale = getDailyTemperatureScale(items);
 
   const title = document.createElement('h2');

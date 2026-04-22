@@ -9,6 +9,8 @@ export function formatWeekday(value, locale = 'it-IT', weekdayStyle = 'short') {
   if (typeof value !== 'string') return '--';
 
   // Forziamo mezzanotte per trattare `value` come data locale e non come orario assoluto.
+  // Questo evita slittamenti di giorno dovuti al parsing dei timezone quando
+  // l'API ci passa una semplice data YYYY-MM-DD.
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return '--';
 
