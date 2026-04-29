@@ -1,0 +1,22 @@
+/* States and feedback */
+.choices-list{
+  display:flex;
+  flex-direction:column;
+  gap:.6rem;
+  margin-top:1rem;
+}
+
+.choice-button{
+  text-align:left;
+  font-size:1rem;
+  background:var(--card-muted);
+  color:var(--text);
+  border:1px solid var(--border);
+  box-shadow:none;
+}
+
+.choice-button:hover{background:var(--choice-hover)}
+
+.error-title{margin:0 0 .5rem}
+
+.retry-button{margin-top:1rem}

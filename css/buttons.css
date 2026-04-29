@@ -1,0 +1,29 @@
+/* Shared interactive elements */
+button{
+  border:none;
+  border-radius:18px;
+  padding:.95rem 1.25rem;
+  background:linear-gradient(180deg,var(--accent) 0%,var(--accent-dark) 100%);
+  color:#fff;
+  font-weight:700;
+  cursor:pointer;
+  transition:transform .16s ease, box-shadow .16s ease, opacity .16s ease;
+  box-shadow:0 12px 22px rgba(31,111,229,0.24);
+}
+
+button:hover{
+  transform:translateY(-1px);
+  box-shadow:0 16px 28px rgba(31,111,229,0.28);
+}
+
+button:focus-visible{
+  outline:none;
+  box-shadow:0 0 0 4px rgba(31,111,229,0.18), 0 12px 22px rgba(31,111,229,0.24);
+}
+
+button:disabled{
+  cursor:default;
+  opacity:.7;
+  transform:none;
+  box-shadow:none;
+}
