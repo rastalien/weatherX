@@ -11,3 +11,8 @@ export function getUserErrorMessage(err, fallbackMessage = 'Si e verificato un e
   if (err && err.userMessage) return err.userMessage;
   return fallbackMessage;
 }
+
+export function getUserErrorTitle(err, fallbackTitle = 'Qualcosa e andato storto') {
+  if (err && err.userTitle) return err.userTitle;
+  return fallbackTitle;
+}

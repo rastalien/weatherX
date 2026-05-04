@@ -11,6 +11,11 @@ function createStorageKey(namespace, key) {
 }
 
 export function loadPersistentCache(namespace, key, storage = getDefaultStorage()) {
+  const entry = loadPersistentCacheEntry(namespace, key, { allowExpired: false }, storage);
+  return entry?.value ?? null;
+}
+
+export function loadPersistentCacheEntry(namespace, key, options = {}, storage = getDefaultStorage()) {
   if (!storage) {
     return null;
   }
@@ -26,14 +31,26 @@ export function loadPersistentCache(namespace, key, storage = getDefaultStorage(
       return null;
     }
 
-    // Quando il TTL scade eliminiamo subito la voce dal browser,
-    // cosi il resto dell'app non deve gestire cache stale.
+    // Normalmente il TTL scaduto elimina la voce. Il meteo pero puo usare
+    // `allowExpired` per mostrare una copia stale quando l'utente e offline.
     if (typeof parsedValue.expiresAt !== 'number' || Date.now() > parsedValue.expiresAt) {
-      storage.removeItem(createStorageKey(namespace, key));
-      return null;
+      if (!options.allowExpired) {
+        storage.removeItem(createStorageKey(namespace, key));
+        return null;
+      }
+
+      return {
+        value: parsedValue.value ?? null,
+        expiresAt: parsedValue.expiresAt,
+        isExpired: true
+      };
     }
 
-    return parsedValue.value ?? null;
+    return {
+      value: parsedValue.value ?? null,
+      expiresAt: parsedValue.expiresAt,
+      isExpired: false
+    };
   } catch (err) {
     console.warn('Impossibile leggere una voce di cache persistente.', err);
     return null;

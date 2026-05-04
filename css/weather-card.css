@@ -53,6 +53,32 @@
   margin-bottom:.15rem;
 }
 
+.weather-meta{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:center;
+  gap:.45rem;
+  color:var(--text-soft);
+  font-size:.82rem;
+  font-weight:650;
+}
+
+.weather-stale-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:.18rem .52rem;
+  border-radius:999px;
+  background:color-mix(in srgb, var(--accent) 10%, var(--card-muted));
+  border:1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  color:var(--accent-dark);
+  font-size:.72rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+
 .place-label{
   max-width:30ch;
   font-size:.92rem;

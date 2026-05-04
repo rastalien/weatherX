@@ -235,6 +235,21 @@
 }
 
 @media (min-width: 521px) and (max-width: 620px){
+  .brand-block{
+    flex-direction:column;
+    align-items:stretch;
+    gap:.65rem;
+  }
+  .brand-kicker{
+    text-align:center;
+  }
+  .top-bar .unit-toggle{
+    align-self:stretch;
+    width:100%;
+  }
+  .unit-toggle-button{
+    max-width:none;
+  }
   .daily-forecast-row{
     grid-template-columns:minmax(88px, 96px) 1fr;
     align-items:center;

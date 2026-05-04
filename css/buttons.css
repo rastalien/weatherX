@@ -27,3 +27,19 @@ button:disabled{
   transform:none;
   box-shadow:none;
 }
+
+.geolocation-button{
+  background:color-mix(in srgb, var(--card-muted) 92%, transparent);
+  color:var(--text);
+  border:1px solid var(--border);
+  box-shadow:none;
+}
+
+.geolocation-button:hover{
+  background:var(--choice-hover);
+  box-shadow:none;
+}
+
+.geolocation-button:focus-visible{
+  box-shadow:0 0 0 4px rgba(31,111,229,0.18);
+}

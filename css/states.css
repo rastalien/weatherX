@@ -20,3 +20,16 @@
 .error-title{margin:0 0 .5rem}
 
 .retry-button{margin-top:1rem}
+
+.empty-state-card{
+  text-align:center;
+}
+
+.empty-state-title{
+  margin:0 0 .45rem;
+}
+
+.empty-state-copy{
+  margin:0 auto;
+  max-width:34ch;
+}

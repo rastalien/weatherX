@@ -112,4 +112,21 @@ describe('weather DOM rendering', () => {
     expect(root.querySelector('.hourly-item')?.classList.contains('is-current')).toBe(true);
     expect(root.querySelector('.daily-forecast-row')?.classList.contains('is-primary')).toBe(true);
   });
+
+  it('mostra timestamp di aggiornamento e badge quando i dati arrivano dalla cache offline', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+
+    renderWeather(root, {
+      ...sampleWeatherData,
+      meta: {
+        updatedAt: '2026-04-02T19:15:00.000Z',
+        isStale: true
+      }
+    }, 'Roma, Lazio, Italia');
+
+    expect(root.textContent).toContain('Aggiornato il 02/04 alle');
+    expect(root.textContent).toContain('Dati salvati');
+    expect(root.querySelector('.weather-stale-badge')).not.toBeNull();
+  });
 });

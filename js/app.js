@@ -6,10 +6,11 @@ import {
   renderLocationChoices,
   renderError,
   renderLoading,
+  renderWelcome,
   renderSuggestions,
   clearSuggestions
 } from './ui/index.js';
-import { getUserErrorMessage } from './shared/errors.js';
+import { getUserErrorMessage, getUserErrorTitle } from './shared/errors.js';
 import { TEMPERATURE_UNITS } from './features/weather/units.js';
 import { clearSavedResolvedPlace, loadSavedResolvedPlace, saveResolvedPlace } from './shared/last-place.js';
 import { isFavoritePlace, loadFavoritePlaces, saveFavoritePlaces, toggleFavoritePlace } from './shared/favorites.js';
@@ -18,6 +19,7 @@ import { isFavoritePlace, loadFavoritePlaces, saveFavoritePlaces, toggleFavorite
 const form = document.getElementById(CONFIG.SELECTORS.form);
 const input = document.getElementById(CONFIG.SELECTORS.input);
 const searchButton = document.getElementById(CONFIG.SELECTORS.searchButton);
+const geolocationButton = document.getElementById(CONFIG.SELECTORS.geolocationButton);
 const unitToggle = document.getElementById(CONFIG.SELECTORS.unitToggle);
 const root = document.getElementById(CONFIG.SELECTORS.weatherRoot);
 const favoritesRoot = document.getElementById(CONFIG.SELECTORS.favoritesRoot);
@@ -51,6 +53,25 @@ let feedbackTimer = null;
 function createBootstrapError(message) {
   const error = new Error(message);
   error.canRetry = false;
+  return error;
+}
+
+function createUserFacingError(message, userMessage, canRetry = false, userTitle = 'Qualcosa e andato storto') {
+  const error = new Error(message);
+  error.userMessage = userMessage;
+  error.canRetry = canRetry;
+  error.userTitle = userTitle;
+  return error;
+}
+
+function createPermissionDeniedError() {
+  const error = createUserFacingError(
+    'Geolocation permission denied',
+    'Posizione non consentita. Cerca una citta per vedere il meteo.',
+    false,
+    'Permesso posizione negato'
+  );
+  error.reason = 'geolocation-permission-denied';
   return error;
 }
 
@@ -184,7 +205,7 @@ function renderSidebarPanels() {
 function handleError(err, retryAction = null) {
   console.error(err);
   const canRetry = retryAction && err?.canRetry !== false;
-  renderError(root, getUserErrorMessage(err), canRetry ? retryAction : null);
+  renderError(root, getUserErrorMessage(err), canRetry ? retryAction : null, getUserErrorTitle(err));
 }
 
 function setBusy(isBusy) {
@@ -263,6 +284,80 @@ function isStaleSearch(searchId) {
   return searchId !== activeSearchId;
 }
 
+function getCurrentPosition() {
+  // I browser espongono la geolocalizzazione solo in secure context:
+  // localhost/127.0.0.1 vanno bene, un IP di rete in HTTP invece no.
+  if (window.isSecureContext === false) {
+    return Promise.reject(createUserFacingError(
+      'Geolocation blocked on insecure origin',
+      'La geolocalizzazione funziona solo su HTTPS o localhost. Apri l app da http://127.0.0.1:8081 o http://localhost:8081.',
+      false,
+      'Connessione non sicura'
+    ));
+  }
+
+  if (!navigator.geolocation) {
+    return Promise.reject(createUserFacingError(
+      'Geolocation not supported',
+      'Il browser non rende disponibile la geolocalizzazione su questo indirizzo. Prova da localhost o abilita i servizi di posizione.',
+      false,
+      'Posizione non supportata'
+    ));
+  }
+
+  const readPosition = (options) => new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, options);
+  });
+
+  const standardOptions = {
+    enableHighAccuracy: false,
+    timeout: 8000,
+    maximumAge: 5 * 60 * 1000
+  };
+
+  const highAccuracyOptions = {
+    enableHighAccuracy: true,
+    timeout: 12000,
+    maximumAge: 0
+  };
+
+  const createGeolocationError = (err) => {
+    if (err.code === err.PERMISSION_DENIED) {
+      return createPermissionDeniedError();
+    }
+
+    if (err.code === err.TIMEOUT) {
+      return createUserFacingError(
+        'Geolocation timeout',
+        'Non sono riuscito a leggere la posizione in tempo. Avvicinati a una finestra, verifica i servizi di posizione e riprova.',
+        true,
+        'Posizione troppo lenta'
+      );
+    }
+
+    return createUserFacingError(
+      'Geolocation unavailable',
+      'Il browser non riesce a determinare la posizione. Controlla che i servizi di posizione siano attivi nel sistema operativo e che il browser abbia il permesso di usarli.',
+      true,
+      'Posizione non disponibile'
+    );
+  };
+
+  // Alcuni desktop rispondono POSITION_UNAVAILABLE al primo tentativo.
+  // In quel caso riproviamo con alta accuratezza prima di mostrare l'errore.
+  return readPosition(standardOptions).catch(async (err) => {
+    if (err.code !== err.POSITION_UNAVAILABLE) {
+      throw createGeolocationError(err);
+    }
+
+    try {
+      return await readPosition(highAccuracyOptions);
+    } catch (retryErr) {
+      throw createGeolocationError(retryErr);
+    }
+  });
+}
+
 function retryLastSearch() {
   if (!form || !input || !lastSearchQuery) return;
   input.value = lastSearchQuery;
@@ -319,6 +414,41 @@ async function handleSidebarPlaceSelection(place) {
   } catch (err) {
     if (!isStaleSearch(searchId)) {
       handleError(err, () => handleSidebarPlaceSelection(place));
+    }
+  } finally {
+    if (!isStaleSearch(searchId)) {
+      setBusy(false);
+    }
+  }
+}
+
+async function handleGeolocationSelection() {
+  const searchId = createSearchId();
+  setBusy(true);
+
+  try {
+    resetSuggestions();
+    input.value = '';
+    lastSearchQuery = '';
+    showFeedback('Cerco la tua posizione...');
+    const position = await getCurrentPosition();
+    if (isStaleSearch(searchId)) return;
+
+    // La Geolocation API restituisce solo coordinate, non il nome della citta.
+    // Per questo usiamo una label generica finche non avremo reverse geocoding.
+    const lat = position.coords.latitude;
+    const lon = position.coords.longitude;
+    await showWeatherForPlace(lat, lon, 'La tua posizione', searchId);
+    updateSearchButtonLabel();
+  } catch (err) {
+    if (!isStaleSearch(searchId)) {
+      if (err?.reason === 'geolocation-permission-denied') {
+        renderWelcome(root);
+        showFeedback(err.userMessage);
+        return;
+      }
+
+      handleError(err, err?.canRetry ? handleGeolocationSelection : null);
     }
   } finally {
     if (!isStaleSearch(searchId)) {
@@ -485,7 +615,12 @@ async function handleSearch(searchId) {
   if (isStaleSearch(searchId)) return;
   const places = dedupePlaces(geo?.results);
   if (places.length === 0) {
-    renderError(root, 'Non ho trovato nessuna localita con questo nome.', null);
+    renderError(
+      root,
+      `Non ho trovato "${q}". Controlla eventuali errori nel nome oppure prova con provincia o paese.`,
+      null,
+      'Localita non trovata'
+    );
     return;
   }
 
@@ -536,31 +671,33 @@ async function refreshCurrentWeather(searchId) {
   );
 }
 
-async function loadDefaultWeather() {
-  // Al bootstrap proviamo prima a ripristinare l'ultima localita valida vista.
-  // Solo se manca o non e piu valida ricadiamo sulla localita di default configurata.
+async function loadInitialWeather() {
+  // Al bootstrap ripristiniamo solo l'ultima localita valida vista.
+  // Se non esiste, lasciamo l'app in attesa di ricerca o geolocalizzazione.
   const savedPlace = loadSavedResolvedPlace();
-  const fallbackPlace = {
-    lat: CONFIG.DEFAULT_LOCATION.coords.lat,
-    lon: CONFIG.DEFAULT_LOCATION.coords.lon,
-    label: CONFIG.DEFAULT_LOCATION.label
-  };
-  const initialPlace = savedPlace ?? fallbackPlace;
+
+  if (!savedPlace) {
+    // Niente piu fallback automatico su Roma: il primo meteo mostrato deve
+    // arrivare da una scelta esplicita dell'utente o da una localita salvata.
+    renderWelcome(root);
+    updateSearchButtonLabel();
+    return;
+  }
+
   const searchId = createSearchId();
   setBusy(true);
 
   try {
     input.value = '';
     lastSearchQuery = '';
-    await showWeatherForPlace(initialPlace.lat, initialPlace.lon, initialPlace.label, searchId);
+    await showWeatherForPlace(savedPlace.lat, savedPlace.lon, savedPlace.label, searchId);
   } catch (err) {
     if (!isStaleSearch(searchId)) {
       // Se la localita salvata nel browser e corrotta o non piu caricabile,
       // la rimuoviamo per evitare tentativi falliti anche al prossimo refresh.
-      if (savedPlace) {
-        clearSavedResolvedPlace();
-      }
-      handleError(err, loadDefaultWeather);
+      clearSavedResolvedPlace();
+      renderWelcome(root);
+      showFeedback('Non sono riuscito a ripristinare l ultima localita salvata.');
     }
   } finally {
     if (!isStaleSearch(searchId)) {
@@ -654,6 +791,12 @@ function bindEventListeners() {
       }
     });
   }
+
+  if (geolocationButton) {
+    geolocationButton.addEventListener('click', () => {
+      void handleGeolocationSelection();
+    });
+  }
 }
 
 async function bootstrapApp() {
@@ -665,12 +808,12 @@ async function bootstrapApp() {
     updateUnitToggle();
     renderSidebarPanels();
     bindEventListeners();
-    await loadDefaultWeather();
+    await loadInitialWeather();
   } catch (err) {
     console.error(err);
 
     if (root) {
-      renderError(root, getUserErrorMessage(err), null);
+      renderError(root, getUserErrorMessage(err), null, getUserErrorTitle(err));
     }
   }
 }

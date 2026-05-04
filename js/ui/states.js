@@ -48,7 +48,7 @@ export function renderLocationChoices(root, places, onSelect) {
   }
 }
 
-export function renderError(root, message, onRetry) {
+export function renderError(root, message, onRetry, titleText = 'Qualcosa e andato storto') {
   root.innerHTML = '';
   const card = document.createElement('section');
   card.className = 'card';
@@ -56,7 +56,7 @@ export function renderError(root, message, onRetry) {
 
   const title = document.createElement('h2');
   title.className = 'error-title';
-  title.textContent = 'Qualcosa e andato storto';
+  title.textContent = titleText;
 
   const text = document.createElement('p');
   text.className = 'small';
@@ -83,5 +83,24 @@ export function renderLoading(root, message = 'Caricamento...') {
   card.className = 'card small';
   card.setAttribute('role', 'status');
   card.textContent = message;
+  root.appendChild(card);
+}
+
+export function renderWelcome(root) {
+  root.innerHTML = '';
+  const card = document.createElement('section');
+  card.className = 'card empty-state-card';
+  card.setAttribute('aria-label', 'Nessuna localita selezionata');
+
+  const title = document.createElement('h2');
+  title.className = 'empty-state-title';
+  title.textContent = 'Cerca una localita';
+
+  const text = document.createElement('p');
+  text.className = 'small empty-state-copy';
+  text.textContent = 'Inserisci una citta oppure usa la tua posizione per vedere il meteo.';
+
+  card.appendChild(title);
+  card.appendChild(text);
   root.appendChild(card);
 }

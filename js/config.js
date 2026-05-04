@@ -1,19 +1,12 @@
 import { RUNTIME_ENV } from './runtime-env.js';
 
 const DEFAULT_CONFIG = {
-  // Posizione iniziale mostrata al primo avvio prima di qualsiasi ricerca utente.
-  DEFAULT_LOCATION: {
-    label: 'Roma, Lazio, Italia',
-    coords: {
-      lat: 41.9028,
-      lon: 12.4964
-    }
-  },
   // Gli id HTML sono centralizzati qui per evitare stringhe duplicate sparse nell'app.
   SELECTORS: {
     form: 'search-form',
     input: 'location-input',
     searchButton: 'search-button',
+    geolocationButton: 'geolocation-button',
     unitToggle: 'temperature-unit-toggle',
     weatherRoot: 'weather-root',
     favoritesRoot: 'favorites-root',
@@ -59,13 +52,6 @@ function getNumberEnvValue(key, fallback) {
 
 export const CONFIG = {
   ...DEFAULT_CONFIG,
-  DEFAULT_LOCATION: {
-    label: getStringEnvValue('WEATHER_DEFAULT_LOCATION_LABEL', DEFAULT_CONFIG.DEFAULT_LOCATION.label),
-    coords: {
-      lat: getNumberEnvValue('WEATHER_DEFAULT_LAT', DEFAULT_CONFIG.DEFAULT_LOCATION.coords.lat),
-      lon: getNumberEnvValue('WEATHER_DEFAULT_LON', DEFAULT_CONFIG.DEFAULT_LOCATION.coords.lon)
-    }
-  },
   // Gli endpoint restano pubblici e configurabili: questo aiuta test locali,
   // proxy futuri o eventuali varianti dell'ambiente senza toccare il codice app.
   OPEN_METEO_BASE: getStringEnvValue('WEATHER_FORECAST_API_BASE', DEFAULT_CONFIG.OPEN_METEO_BASE),

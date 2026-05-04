@@ -9,6 +9,7 @@ import {
   formatWindSpeed,
   TEMPERATURE_UNITS
 } from '../features/weather/units.js';
+import { formatUpdatedAt } from '../features/weather/dates.js';
 import { applyWeatherTheme } from '../features/weather/theme.js';
 import { getUpcomingHourlyForecast, renderDailyForecast, renderHourlyForecast } from './forecast.js';
 
@@ -101,6 +102,24 @@ export function renderWeather(root, data, placeLabel, options = {}) {
   currentLabel.className = 'current-label';
   currentLabel.textContent = 'Condizioni attuali';
 
+  const metaRow = document.createElement('div');
+  metaRow.className = 'weather-meta';
+  const updatedAtLabel = formatUpdatedAt(data.meta?.updatedAt);
+  if (updatedAtLabel) {
+    const updatedAt = document.createElement('span');
+    updatedAt.className = 'weather-updated-at';
+    updatedAt.textContent = `Aggiornato ${updatedAtLabel}`;
+    metaRow.appendChild(updatedAt);
+  }
+
+  if (data.meta?.isStale) {
+    const staleBadge = document.createElement('span');
+    staleBadge.className = 'weather-stale-badge';
+    staleBadge.textContent = 'Dati salvati';
+    staleBadge.setAttribute('title', 'La rete non risponde: sto mostrando gli ultimi dati disponibili.');
+    metaRow.appendChild(staleBadge);
+  }
+
   const headline = document.createElement('div');
   headline.className = 'weather-headline';
 
@@ -170,6 +189,9 @@ export function renderWeather(root, data, placeLabel, options = {}) {
   cardHeader.appendChild(createFavoriteButton(isFavorite, onToggleFavorite, placeLabel));
   col1.appendChild(cardHeader);
   col1.appendChild(currentLabel);
+  if (metaRow.childElementCount > 0) {
+    col1.appendChild(metaRow);
+  }
   headline.appendChild(icon);
   headline.appendChild(temp);
   col1.appendChild(headline);

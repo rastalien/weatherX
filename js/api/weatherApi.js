@@ -1,5 +1,5 @@
 import { CONFIG } from '../config.js';
-import { loadPersistentCache, savePersistentCache } from '../shared/persistent-cache.js';
+import { loadPersistentCache, loadPersistentCacheEntry, savePersistentCache } from '../shared/persistent-cache.js';
 
 const REQUEST_TIMEOUT_MS = 8000;
 const weatherCache = new Map();
@@ -7,20 +7,81 @@ const geocodingCache = new Map();
 const WEATHER_CACHE_NAMESPACE = 'weatherx.weather';
 const GEOCODING_CACHE_NAMESPACE = 'weatherx.geocoding';
 
-function createAppError(message, userMessage, canRetry = true) {
+function createAppError(message, userMessage, canRetry = true, userTitle = 'Qualcosa e andato storto') {
   const error = new Error(message);
   error.userMessage = userMessage;
   error.canRetry = canRetry;
+  error.userTitle = userTitle;
   return error;
 }
 
-function getServiceFailureMessage(serviceName) {
-  switch (serviceName) {
-    case 'Geocoding':
-      return 'Il servizio di ricerca localita non risponde correttamente. Riprova tra poco.';
-    default:
-      return 'Il servizio meteo non risponde correttamente. Riprova tra poco.';
+function getServiceLabel(serviceName) {
+  return serviceName === 'Geocoding' ? 'ricerca localita' : 'meteo';
+}
+
+function getHttpFailureDetails(serviceName, status) {
+  const label = getServiceLabel(serviceName);
+
+  if (status === 401 || status === 403) {
+    return {
+      title: 'Servizio non autorizzato',
+      message: `Il servizio ${label} ha rifiutato la richiesta. Controlla la configurazione e riprova.`
+    };
   }
+
+  if (status === 404) {
+    return {
+      title: 'Servizio non trovato',
+      message: `Il servizio ${label} non ha trovato l endpoint richiesto. Riprova tra poco.`
+    };
+  }
+
+  if (status === 429) {
+    return {
+      title: 'Troppe richieste',
+      message: `Il servizio ${label} sta ricevendo troppe richieste. Aspetta qualche minuto e riprova.`
+    };
+  }
+
+  if (status >= 500) {
+    return {
+      title: serviceName === 'Geocoding' ? 'Ricerca localita non disponibile' : 'Meteo non disponibile',
+      message: `Il servizio ${label} e momentaneamente in difficolta. Riprova tra poco.`
+    };
+  }
+
+  return {
+    title: 'Risposta non valida',
+    message: `Il servizio ${label} ha risposto con codice ${status}. Riprova tra poco.`
+  };
+}
+
+function getInvalidPayloadDetails(serviceName) {
+  if (serviceName === 'Geocoding') {
+    return {
+      title: 'Risultati localita illeggibili',
+      message: 'Ho ricevuto risultati di ricerca in un formato inatteso. Riprova tra poco.'
+    };
+  }
+
+  return {
+    title: 'Dati meteo illeggibili',
+    message: 'Ho ricevuto dati meteo in un formato inatteso. Riprova tra poco.'
+  };
+}
+
+function getTimeoutDetails(serviceName) {
+  return {
+    title: serviceName === 'Geocoding' ? 'Ricerca troppo lenta' : 'Meteo troppo lento',
+    message: `La richiesta ${getServiceLabel(serviceName)} sta impiegando troppo tempo. Controlla la connessione e riprova.`
+  };
+}
+
+function getNetworkFailureDetails(serviceName) {
+  return {
+    title: 'Connessione assente',
+    message: `Non riesco a contattare il servizio ${getServiceLabel(serviceName)}. Verifica internet e riprova.`
+  };
 }
 
 function getCacheEntry(cache, key) {
@@ -98,6 +159,27 @@ function buildGeocodingCacheKey(query) {
   return query.trim().toLowerCase();
 }
 
+function attachWeatherMeta(weather, meta = {}) {
+  // La UI usa questi metadati per comunicare quando il dato e stato aggiornato
+  // e se proviene da una copia salvata invece che da una risposta appena ricevuta.
+  return {
+    ...weather,
+    meta: {
+      updatedAt: meta.updatedAt || new Date().toISOString(),
+      isStale: meta.isStale === true
+    }
+  };
+}
+
+function markWeatherAsStale(weather) {
+  // Se la rete fallisce, preserviamo l'orario originale del dato salvato:
+  // cosi l'utente capisce quanto e vecchia la previsione mostrata.
+  return attachWeatherMeta(weather, {
+    updatedAt: weather?.meta?.updatedAt,
+    isStale: true
+  });
+}
+
 /**
  * Esegue una richiesta HTTP JSON con timeout e converte gli errori tecnici
  * in errori applicativi con messaggi leggibili per l'utente.
@@ -118,33 +200,45 @@ async function fetchJson(url, serviceName) {
     const res = await fetch(url, { signal: controller.signal });
 
     if (!res.ok) {
+      const details = getHttpFailureDetails(serviceName, res.status);
       throw createAppError(
         `${serviceName} error: ${res.status}`,
-        getServiceFailureMessage(serviceName)
+        details.message,
+        true,
+        details.title
       );
     }
 
     const data = await res.json();
     if (!data || typeof data !== 'object') {
+      const details = getInvalidPayloadDetails(serviceName);
       throw createAppError(
         `${serviceName} returned an invalid payload`,
-        `La risposta di ${serviceName.toLowerCase()} non e valida. Riprova tra poco.`
+        details.message,
+        true,
+        details.title
       );
     }
 
     return data;
   } catch (err) {
     if (err.name === 'AbortError') {
+      const details = getTimeoutDetails(serviceName);
       throw createAppError(
         `${serviceName} timeout`,
-        'La richiesta sta impiegando troppo tempo. Controlla la connessione e riprova.'
+        details.message,
+        true,
+        details.title
       );
     }
 
     if (err instanceof TypeError) {
+      const details = getNetworkFailureDetails(serviceName);
       throw createAppError(
         `${serviceName} network failure`,
-        'Sembra esserci un problema di connessione. Verifica internet e riprova.'
+        details.message,
+        true,
+        details.title
       );
     }
 
@@ -154,7 +248,9 @@ async function fetchJson(url, serviceName) {
 
     throw createAppError(
       `${serviceName} unexpected error`,
-      'Si e verificato un errore imprevisto. Riprova.'
+      `Qualcosa ha interrotto la richiesta ${getServiceLabel(serviceName)}. Riprova tra poco.`,
+      true,
+      'Errore imprevisto'
     );
   } finally {
     clearTimeout(timeoutId);
@@ -206,7 +302,7 @@ function normalizeWeatherPayload(data) {
   if (!current || typeof current !== 'object') {
     throw createAppError(
       'Open-Meteo payload missing current',
-      'Non sono riuscito a leggere i dati meteo per questa localita.',
+      'La risposta meteo non contiene le condizioni attuali per questa localita. Riprova piu tardi.',
       false
     );
   }
@@ -223,7 +319,7 @@ function normalizeWeatherPayload(data) {
   if (missingField) {
     throw createAppError(
       `Open-Meteo current missing ${missingField}`,
-      'I dati meteo ricevuti sono incompleti. Riprova tra poco.',
+      'La risposta meteo e arrivata incompleta, quindi non posso mostrarla in modo affidabile. Riprova tra poco.',
       false
     );
   }
@@ -298,28 +394,54 @@ export const __test__ = {
  */
 export async function fetchWeatherByCoords(lat, lon) {
   const cacheKey = buildWeatherCacheKey(lat, lon);
+  const memoryValue = getCacheEntry(weatherCache, cacheKey);
+  if (memoryValue) {
+    return memoryValue.value;
+  }
 
-  return getOrSetHybridCachedValue(
-    weatherCache,
+  const persistentEntry = loadPersistentCacheEntry(
     WEATHER_CACHE_NAMESPACE,
     cacheKey,
-    CONFIG.CACHE_TTL_MS.weather,
-    async () => {
-      // URLSearchParams costruisce la query string evitando errori di concatenazione manuale.
-      const params = new URLSearchParams({
-        latitude: String(lat),
-        longitude: String(lon),
-        current: CONFIG.DEFAULT_PARAMS.current,
-        timezone: CONFIG.DEFAULT_PARAMS.timezone,
-        daily: CONFIG.DEFAULT_PARAMS.daily,
-        hourly: CONFIG.DEFAULT_PARAMS.hourly
-      });
-
-      const url = `${CONFIG.OPEN_METEO_BASE}?${params.toString()}`;
-      const data = await fetchJson(url, 'Open-Meteo');
-      return normalizeWeatherPayload(data);
-    }
+    { allowExpired: true }
   );
+
+  // Le voci persistenti ancora valide vengono riusate subito; quelle scadute
+  // restano disponibili solo come fallback se il nuovo fetch non riesce.
+  if (persistentEntry?.value && !persistentEntry.isExpired) {
+    setCacheEntry(weatherCache, cacheKey, persistentEntry.value, CONFIG.CACHE_TTL_MS.weather);
+    return persistentEntry.value;
+  }
+
+  try {
+    return await getOrSetCachedValue(
+      weatherCache,
+      cacheKey,
+      CONFIG.CACHE_TTL_MS.weather,
+      async () => {
+        // URLSearchParams costruisce la query string evitando errori di concatenazione manuale.
+        const params = new URLSearchParams({
+          latitude: String(lat),
+          longitude: String(lon),
+          current: CONFIG.DEFAULT_PARAMS.current,
+          timezone: CONFIG.DEFAULT_PARAMS.timezone,
+          daily: CONFIG.DEFAULT_PARAMS.daily,
+          hourly: CONFIG.DEFAULT_PARAMS.hourly
+        });
+
+        const url = `${CONFIG.OPEN_METEO_BASE}?${params.toString()}`;
+        const data = await fetchJson(url, 'Open-Meteo');
+        const weather = attachWeatherMeta(normalizeWeatherPayload(data));
+        savePersistentCache(WEATHER_CACHE_NAMESPACE, cacheKey, weather, CONFIG.CACHE_TTL_MS.weather);
+        return weather;
+      }
+    );
+  } catch (err) {
+    if (persistentEntry?.value) {
+      return markWeatherAsStale(persistentEntry.value);
+    }
+
+    throw err;
+  }
 }
 
 /**

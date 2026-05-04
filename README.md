@@ -180,7 +180,7 @@ Dalla card meteo principale puoi salvare o rimuovere la localita corrente dai pr
 
 ### Comportamento dell'interfaccia
 
-- All'avvio l'app ripristina l'ultima localita valida salvata nel browser; se non esiste usa la localita di default configurata, inizialmente Roma.
+- All'avvio l'app ripristina l'ultima localita valida salvata nel browser; se non esiste resta in attesa di una ricerca o della geolocalizzazione.
 - Su schermi desktop l'interfaccia usa una sidebar con ricerca, selezione unita e localita preferite.
 - Su tablet e mobile il layout passa a una colonna singola senza barra laterale fissa.
 - Durante le richieste la UI mostra uno stato di caricamento.
@@ -358,9 +358,6 @@ npm start
 
 Variabili supportate:
 
-- `WEATHER_DEFAULT_LOCATION_LABEL`
-- `WEATHER_DEFAULT_LAT`
-- `WEATHER_DEFAULT_LON`
 - `WEATHER_FORECAST_API_BASE`
 - `WEATHER_GEOCODING_API_BASE`
 - `WEATHER_LANGUAGE`
@@ -373,9 +370,6 @@ Variabili supportate:
 Esempio:
 
 ```dotenv
-WEATHER_DEFAULT_LOCATION_LABEL=Milano, Lombardia, Italia
-WEATHER_DEFAULT_LAT=45.4642
-WEATHER_DEFAULT_LON=9.19
 WEATHER_LANGUAGE=it
 WEATHER_TIMEZONE=auto
 ```
