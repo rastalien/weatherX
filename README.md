@@ -192,12 +192,13 @@ Dalla card meteo principale puoi salvare o rimuovere la localita corrente dai pr
 - L'ultima localita risolta viene salvata in `localStorage` e riutilizzata dopo un refresh pagina.
 - Il layer API controlla prima una cache in memoria e poi una cache persistente nel browser.
 - Le voci persistenti hanno sempre una scadenza TTL e vengono eliminate quando risultano scadute o non valide.
-- Il meteo e il geocoding restano configurabili via `.env` anche per quanto riguarda i TTL della cache.
+- Il meteo, il geocoding e il reverse geocoding restano configurabili via `.env` anche per quanto riguarda i TTL della cache.
 
 ## API Utilizzate
 
 - Open-Meteo Forecast API
 - Open-Meteo Geocoding API
+- Nominatim Reverse Geocoding API
 
 ## Gestione Degli Errori
 
@@ -360,6 +361,7 @@ Variabili supportate:
 
 - `WEATHER_FORECAST_API_BASE`
 - `WEATHER_GEOCODING_API_BASE`
+- `WEATHER_REVERSE_GEOCODING_API_BASE`
 - `WEATHER_LANGUAGE`
 - `WEATHER_TIMEZONE`
 - `WEATHER_GEOCODING_COUNT`
@@ -392,7 +394,7 @@ Nota importante:
 - `index.html`: struttura base della pagina e punto di ingresso dell'app nel browser
 - `css/styles.css`: stile completo dell'interfaccia, temi e responsive
 - `js/app.js`: coordinamento del flusso principale, ricerca, autocomplete, refresh e stato UI
-- `js/api/weatherApi.js`: chiamate alle API Open-Meteo, cache e normalizzazione dei dati
+- `js/api/weatherApi.js`: chiamate alle API meteo/geocoding, cache e normalizzazione dei dati
 - `js/runtime-env.js`: configurazione runtime generata automaticamente a partire da `.env`
 - `js/features/weather/maps.js`: mapping dei codici meteo in emoji e descrizioni
 - `js/features/weather/dates.js`: formatter per giorni e orari

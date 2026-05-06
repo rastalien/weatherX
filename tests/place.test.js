@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dedupePlaces, formatPlace } from '../js/shared/place.js';
+import { dedupePlaces, formatPlace, formatReversePlace } from '../js/shared/place.js';
 
 describe('place helpers', () => {
   it('formatPlace compone correttamente la label della localita', () => {
@@ -8,6 +8,16 @@ describe('place helpers', () => {
       admin1: 'Lazio',
       country: 'Italia'
     })).toBe('Roma, Lazio, Italia');
+  });
+
+  it('formatReversePlace estrae una label cittadina dal reverse geocoder', () => {
+    expect(formatReversePlace({
+      address: {
+        city: 'Milano',
+        state: 'Lombardia',
+        country: 'Italia'
+      }
+    })).toBe('Milano, Lombardia, Italia');
   });
 
   it('dedupePlaces rimuove risultati duplicati per label e coordinate simili', () => {

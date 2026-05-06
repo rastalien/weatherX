@@ -4,8 +4,10 @@ import { loadPersistentCache, loadPersistentCacheEntry, savePersistentCache } fr
 const REQUEST_TIMEOUT_MS = 8000;
 const weatherCache = new Map();
 const geocodingCache = new Map();
+const reverseGeocodingCache = new Map();
 const WEATHER_CACHE_NAMESPACE = 'weatherx.weather';
 const GEOCODING_CACHE_NAMESPACE = 'weatherx.geocoding';
+const REVERSE_GEOCODING_CACHE_NAMESPACE = 'weatherx.reverseGeocoding';
 
 function createAppError(message, userMessage, canRetry = true, userTitle = 'Qualcosa e andato storto') {
   const error = new Error(message);
@@ -16,7 +18,7 @@ function createAppError(message, userMessage, canRetry = true, userTitle = 'Qual
 }
 
 function getServiceLabel(serviceName) {
-  return serviceName === 'Geocoding' ? 'ricerca localita' : 'meteo';
+  return serviceName === 'Geocoding' || serviceName === 'ReverseGeocoding' ? 'ricerca localita' : 'meteo';
 }
 
 function getHttpFailureDetails(serviceName, status) {
@@ -57,7 +59,7 @@ function getHttpFailureDetails(serviceName, status) {
 }
 
 function getInvalidPayloadDetails(serviceName) {
-  if (serviceName === 'Geocoding') {
+  if (serviceName === 'Geocoding' || serviceName === 'ReverseGeocoding') {
     return {
       title: 'Risultati localita illeggibili',
       message: 'Ho ricevuto risultati di ricerca in un formato inatteso. Riprova tra poco.'
@@ -157,6 +159,10 @@ function buildWeatherCacheKey(lat, lon) {
 
 function buildGeocodingCacheKey(query) {
   return query.trim().toLowerCase();
+}
+
+function buildReverseGeocodingCacheKey(lat, lon) {
+  return `${Number(lat).toFixed(4)}|${Number(lon).toFixed(4)}`;
 }
 
 function attachWeatherMeta(weather, meta = {}) {
@@ -474,6 +480,42 @@ export async function geocodeLocation(query) {
 
       // Alcune ricerche possono non restituire results: in quel caso lasciamo decidere ad app.js.
       return data;
+    }
+  );
+}
+
+/**
+ * Ricava un indirizzo leggibile partendo dalle coordinate del browser.
+ *
+ * @param {number} lat Latitudine della posizione richiesta.
+ * @param {number} lon Longitudine della posizione richiesta.
+ * @returns {Promise<object>} Payload del reverse geocoder.
+ *
+ * @example
+ * const place = await reverseGeocodeCoords(45.4642, 9.19);
+ */
+export async function reverseGeocodeCoords(lat, lon) {
+  const cacheKey = buildReverseGeocodingCacheKey(lat, lon);
+
+  return getOrSetHybridCachedValue(
+    reverseGeocodingCache,
+    REVERSE_GEOCODING_CACHE_NAMESPACE,
+    cacheKey,
+    CONFIG.CACHE_TTL_MS.geocoding,
+    async () => {
+      // La Geolocation API del browser restituisce solo coordinate:
+      // questo endpoint le trasforma in una localita mostrabile nella card.
+      const params = new URLSearchParams({
+        format: 'jsonv2',
+        lat: String(lat),
+        lon: String(lon),
+        addressdetails: '1',
+        zoom: '10',
+        'accept-language': CONFIG.GEOCODING_PARAMS.language
+      });
+
+      const url = `${CONFIG.REVERSE_GEOCODING_API_BASE}?${params.toString()}`;
+      return fetchJson(url, 'ReverseGeocoding');
     }
   );
 }

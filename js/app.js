@@ -1,6 +1,6 @@
 import { CONFIG } from './config.js';
-import { formatPlace, dedupePlaces } from './shared/place.js';
-import { geocodeLocation, fetchWeatherByCoords } from './api/weatherApi.js';
+import { formatPlace, formatReversePlace, dedupePlaces } from './shared/place.js';
+import { geocodeLocation, reverseGeocodeCoords, fetchWeatherByCoords } from './api/weatherApi.js';
 import {
   renderWeather,
   renderLocationChoices,
@@ -366,6 +366,17 @@ function retryLastSearch() {
   form.dispatchEvent(evt);
 }
 
+async function resolveGeolocationLabel(lat, lon) {
+  try {
+    return formatReversePlace(await reverseGeocodeCoords(lat, lon));
+  } catch (err) {
+    // Il meteo non deve dipendere dalla riuscita del reverse geocoding:
+    // se la label cittadina non arriva, mostriamo comunque le previsioni.
+    console.warn('Reverse geocoding non disponibile, uso label generica.', err);
+    return 'La tua posizione';
+  }
+}
+
 function setLastResolvedPlace(lat, lon, label) {
   // Manteniamo i dati gia risolti della localita corrente per il pulsante "Aggiorna".
   lastResolvedPlace = { lat, lon, label };
@@ -434,11 +445,11 @@ async function handleGeolocationSelection() {
     const position = await getCurrentPosition();
     if (isStaleSearch(searchId)) return;
 
-    // La Geolocation API restituisce solo coordinate, non il nome della citta.
-    // Per questo usiamo una label generica finche non avremo reverse geocoding.
     const lat = position.coords.latitude;
     const lon = position.coords.longitude;
-    await showWeatherForPlace(lat, lon, 'La tua posizione', searchId);
+    const placeLabel = await resolveGeolocationLabel(lat, lon);
+    if (isStaleSearch(searchId)) return;
+    await showWeatherForPlace(lat, lon, placeLabel, searchId);
     updateSearchButtonLabel();
   } catch (err) {
     if (!isStaleSearch(searchId)) {

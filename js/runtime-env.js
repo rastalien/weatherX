@@ -2,6 +2,7 @@
 export const RUNTIME_ENV = {
   "WEATHER_FORECAST_API_BASE": "https://api.open-meteo.com/v1/forecast",
   "WEATHER_GEOCODING_API_BASE": "https://geocoding-api.open-meteo.com/v1/search",
+  "WEATHER_REVERSE_GEOCODING_API_BASE": "https://nominatim.openstreetmap.org/reverse",
   "WEATHER_LANGUAGE": "it",
   "WEATHER_TIMEZONE": "auto",
   "WEATHER_GEOCODING_COUNT": "5",

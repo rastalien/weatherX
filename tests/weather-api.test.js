@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { __test__, fetchWeatherByCoords, geocodeLocation } from '../js/api/weatherApi.js';
+import { __test__, fetchWeatherByCoords, geocodeLocation, reverseGeocodeCoords } from '../js/api/weatherApi.js';
 
 describe('weather api edge cases', () => {
   beforeEach(() => {
@@ -49,6 +49,31 @@ describe('weather api edge cases', () => {
 
     const result = await geocodeLocation('@@@');
     expect(result.results).toEqual([]);
+  });
+
+  it('recupera la localita leggibile dalle coordinate del browser', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        address: {
+          city: 'Milano',
+          state: 'Lombardia',
+          country: 'Italia'
+        }
+      })
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await reverseGeocodeCoords(45.4642, 9.19);
+    const calledUrl = new URL(fetchMock.mock.calls[0][0]);
+
+    expect(result.address.city).toBe('Milano');
+    expect(calledUrl.hostname).toBe('nominatim.openstreetmap.org');
+    expect(calledUrl.searchParams.get('format')).toBe('jsonv2');
+    expect(calledUrl.searchParams.get('lat')).toBe('45.4642');
+    expect(calledUrl.searchParams.get('lon')).toBe('9.19');
+    expect(calledUrl.searchParams.get('zoom')).toBe('10');
   });
 
   it('rifiuta weather data null o incompleti', () => {

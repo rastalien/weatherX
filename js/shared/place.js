@@ -7,6 +7,41 @@ export function formatPlace(geoHit) {
   return parts.join(', ');
 }
 
+export function formatReversePlace(reverseHit) {
+  if (!reverseHit || typeof reverseHit !== 'object') {
+    return 'La tua posizione';
+  }
+
+  const address = reverseHit.address || {};
+  // I reverse geocoder possono usare chiavi diverse in base alla dimensione
+  // del centro abitato: prendiamo il nome piu specifico disponibile.
+  const locality = [
+    address.city,
+    address.town,
+    address.village,
+    address.municipality,
+    address.county,
+    address.state,
+    address.region
+  ].find(Boolean);
+  const region = address.state || address.region;
+  const parts = [locality, region, address.country].filter((part, index, list) => {
+    return part && list.indexOf(part) === index;
+  });
+
+  if (parts.length > 0) {
+    return parts.join(', ');
+  }
+
+  if (typeof reverseHit.display_name === 'string' && reverseHit.display_name.trim()) {
+    // Ultimo tentativo: display_name e molto dettagliato, quindi ne teniamo
+    // solo l'inizio per evitare label troppo lunghe nella UI.
+    return reverseHit.display_name.split(',').slice(0, 3).map((part) => part.trim()).filter(Boolean).join(', ');
+  }
+
+  return 'La tua posizione';
+}
+
 /**
  * Rimuove risultati duplicati o quasi duplicati dal geocoder prima del rendering.
  * La deduplica tiene conto sia della label visibile sia di coordinate molto simili.

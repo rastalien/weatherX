@@ -14,6 +14,7 @@ const DEFAULT_CONFIG = {
     feedbackRoot: 'feedback-root'
   },
   OPEN_METEO_BASE: 'https://api.open-meteo.com/v1/forecast',
+  REVERSE_GEOCODING_API_BASE: 'https://nominatim.openstreetmap.org/reverse',
   CACHE_TTL_MS: {
     // Il meteo puo essere riusato per pochi minuti senza cambiare davvero
     // la percezione del dato, ma riducendo richieste ripetute inutili.
@@ -56,6 +57,7 @@ export const CONFIG = {
   // proxy futuri o eventuali varianti dell'ambiente senza toccare il codice app.
   OPEN_METEO_BASE: getStringEnvValue('WEATHER_FORECAST_API_BASE', DEFAULT_CONFIG.OPEN_METEO_BASE),
   GEOCODING_API_BASE: getStringEnvValue('WEATHER_GEOCODING_API_BASE', 'https://geocoding-api.open-meteo.com/v1/search'),
+  REVERSE_GEOCODING_API_BASE: getStringEnvValue('WEATHER_REVERSE_GEOCODING_API_BASE', DEFAULT_CONFIG.REVERSE_GEOCODING_API_BASE),
   CACHE_TTL_MS: {
     weather: getNumberEnvValue('WEATHER_CACHE_TTL_WEATHER_MS', DEFAULT_CONFIG.CACHE_TTL_MS.weather),
     geocoding: getNumberEnvValue('WEATHER_CACHE_TTL_GEOCODING_MS', DEFAULT_CONFIG.CACHE_TTL_MS.geocoding)
