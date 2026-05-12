@@ -128,5 +128,71 @@ describe('weather DOM rendering', () => {
     expect(root.textContent).toContain('Aggiornato il 02/04 alle');
     expect(root.textContent).toContain('Dati salvati');
     expect(root.querySelector('.weather-stale-badge')).not.toBeNull();
+    expect(root.querySelector('.weather-meta-footer')?.nextElementSibling?.className).toBe('hourly-card');
+  });
+
+  it('mostra un avviso di meteo avverso quando sono previsti temporali', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+
+    renderWeather(root, {
+      ...sampleWeatherData,
+      hourly: [
+        ...sampleWeatherData.hourly,
+        { time: '2026-04-02T22:00', temperature: 17, weatherCode: 95, isDay: false, precipitationProbability: 80 }
+      ]
+    }, 'Roma, Lazio, Italia');
+
+    expect(root.textContent).toContain('Allerta temporali');
+    expect(root.querySelector('.weather-alert-badge')?.classList.contains('is-danger')).toBe(true);
+  });
+
+  it('mostra un avviso di grandine prima dei temporali generici', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+
+    renderWeather(root, {
+      ...sampleWeatherData,
+      hourly: [
+        ...sampleWeatherData.hourly,
+        { time: '2026-04-02T22:00', temperature: 17, weatherCode: 96, isDay: false, precipitationProbability: 80 }
+      ]
+    }, 'Roma, Lazio, Italia');
+
+    expect(root.textContent).toContain('Allerta grandine');
+    expect(root.textContent).not.toContain('Allerta temporali');
+    expect(root.querySelector('.weather-alert-badge')?.classList.contains('is-danger')).toBe(true);
+  });
+
+  it('mostra un avviso di meteo avverso per temperature alte', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+
+    renderWeather(root, {
+      ...sampleWeatherData,
+      daily: {
+        ...sampleWeatherData.daily,
+        maxTemp: 36
+      }
+    }, 'Roma, Lazio, Italia');
+
+    expect(root.textContent).toContain('Allerta caldo intenso');
+    expect(root.querySelector('.weather-alert-badge')?.classList.contains('is-warning')).toBe(true);
+  });
+
+  it('mostra un avviso di meteo avverso per temperature basse', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+
+    renderWeather(root, {
+      ...sampleWeatherData,
+      daily: {
+        ...sampleWeatherData.daily,
+        minTemp: 0
+      }
+    }, 'Roma, Lazio, Italia');
+
+    expect(root.textContent).toContain('Allerta gelo');
+    expect(root.querySelector('.weather-alert-badge')?.classList.contains('is-warning')).toBe(true);
   });
 });

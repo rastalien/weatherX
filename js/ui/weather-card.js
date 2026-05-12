@@ -10,6 +10,7 @@ import {
   TEMPERATURE_UNITS
 } from '../features/weather/units.js';
 import { formatUpdatedAt } from '../features/weather/dates.js';
+import { getAdverseWeatherAlert } from '../features/weather/adverse.js';
 import { applyWeatherTheme } from '../features/weather/theme.js';
 import { getUpcomingHourlyForecast, renderDailyForecast, renderHourlyForecast } from './forecast.js';
 
@@ -81,6 +82,7 @@ export function renderWeather(root, data, placeLabel, options = {}) {
   const currentWeather = data.current;
   applyWeatherTheme(currentWeather);
   const weatherDescription = getWeatherDescription(currentWeather.weatherCode, currentWeather.isDay);
+  const adverseAlert = getAdverseWeatherAlert(data);
   const humidity = currentWeather.humidity;
   const maxTemp = data.daily?.maxTemp;
   const minTemp = data.daily?.minTemp;
@@ -103,7 +105,7 @@ export function renderWeather(root, data, placeLabel, options = {}) {
   currentLabel.textContent = 'Condizioni attuali';
 
   const metaRow = document.createElement('div');
-  metaRow.className = 'weather-meta';
+  metaRow.className = 'weather-meta weather-meta-footer';
   const updatedAtLabel = formatUpdatedAt(data.meta?.updatedAt);
   if (updatedAtLabel) {
     const updatedAt = document.createElement('span');
@@ -160,6 +162,25 @@ export function renderWeather(root, data, placeLabel, options = {}) {
     ? `Vento ${windSpeed} ${windDirection}`
     : `Vento ${windSpeed}`;
 
+  const adverseAlertBadge = document.createElement('div');
+  if (adverseAlert) {
+    adverseAlertBadge.className = `weather-alert-badge is-${adverseAlert.tone}`;
+    adverseAlertBadge.setAttribute('role', 'status');
+
+    // L'icona rafforza visivamente l'avviso, ma il testo resta la parte
+    // annunciata: evitiamo di far leggere "punto esclamativo" agli screen reader.
+    const adverseAlertIcon = document.createElement('span');
+    adverseAlertIcon.className = 'weather-alert-icon';
+    adverseAlertIcon.setAttribute('aria-hidden', 'true');
+    adverseAlertIcon.textContent = '!';
+
+    const adverseAlertText = document.createElement('span');
+    adverseAlertText.textContent = adverseAlert.label;
+
+    adverseAlertBadge.appendChild(adverseAlertIcon);
+    adverseAlertBadge.appendChild(adverseAlertText);
+  }
+
   const details = document.createElement('div');
   details.className = 'details-grid';
 
@@ -189,21 +210,24 @@ export function renderWeather(root, data, placeLabel, options = {}) {
   cardHeader.appendChild(createFavoriteButton(isFavorite, onToggleFavorite, placeLabel));
   col1.appendChild(cardHeader);
   col1.appendChild(currentLabel);
-  if (metaRow.childElementCount > 0) {
-    col1.appendChild(metaRow);
-  }
   headline.appendChild(icon);
   headline.appendChild(temp);
   col1.appendChild(headline);
   summary.appendChild(description);
   col1.appendChild(summary);
   col1.appendChild(wind);
+  if (adverseAlert) {
+    col1.appendChild(adverseAlertBadge);
+  }
   if (details.childElementCount > 0) {
     col1.appendChild(details);
   }
 
   row.appendChild(col1);
   card.appendChild(row);
+  if (metaRow.childElementCount > 0) {
+    card.appendChild(metaRow);
+  }
 
   const hourlyForecast = getUpcomingHourlyForecast(data);
   if (hourlyForecast.length > 0) {

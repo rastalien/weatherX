@@ -8,6 +8,7 @@ WeatherX e una piccola app frontend scritta in HTML, CSS e JavaScript modulare. 
 
 - risolve il nome tramite geocoding
 - mostra il meteo attuale della localita selezionata
+- segnala eventuali allerte previsionali derivate dai dati Open-Meteo
 - mostra `Meteo prossime ore` in formato carosello
 - mostra `Meteo prossimi giorni` in una lista piu dettagliata
 - gestisce ricerche ambigue con una scelta manuale della localita corretta
@@ -23,6 +24,7 @@ Il progetto non usa framework o bundler: gira direttamente nel browser tramite E
 - Aggiornamento rapido dell'ultima localita visualizzata
 - Deduplica dei risultati troppo simili restituiti dal geocoder
 - Meteo attuale con temperatura, descrizione, umidita, min/max e vento con direzione cardinale
+- Badge `Allerta` nella card quando sono previsti grandine, temporali, pioggia intensa, pioggia gelata, neve, vento forte, caldo intenso, gelo o nebbia
 - Sezione `Meteo prossime ore` con progressione oraria in carosello
 - Sezione `Meteo prossimi giorni` con lista dedicata, probabilita di pioggia e barra termica min/max
 - Gestione errori di rete, timeout e risposte API incomplete
@@ -49,8 +51,13 @@ weather-app/
 |   |-- runtime-env.js
 |   |-- api/
 |   |   `-- weatherApi.js
+|   |-- controllers/
+|   |   |-- autocomplete-controller.js
+|   |   |-- favorites-controller.js
+|   |   `-- search-controller.js
 |   |-- features/
 |   |   `-- weather/
+|   |       |-- adverse.js
 |   |       |-- dates.js
 |   |       |-- maps.js
 |   |       |-- theme.js
@@ -135,6 +142,7 @@ La suite copre:
 
 - helper e formatter
 - casi limite del layer API
+- avvisi previsionali derivati dai dati meteo
 - rendering DOM principale
 - rendering DOM dei suggerimenti autocomplete
 
@@ -185,7 +193,24 @@ Dalla card meteo principale puoi salvare o rimuovere la localita corrente dai pr
 - Su tablet e mobile il layout passa a una colonna singola senza barra laterale fissa.
 - Durante le richieste la UI mostra uno stato di caricamento.
 - In caso di errore l'app mostra un messaggio leggibile e, quando possibile, un pulsante per riprovare.
+- La card puo mostrare una badge `Allerta` con icona warning quando i dati previsionali indicano condizioni avverse.
 - Su schermi piccoli alcune etichette del forecast usano una versione piu compatta, mentre su schermi ampi vengono mostrate descrizioni meteo piu complete.
+
+### Avvisi previsionali
+
+Gli avvisi mostrati nella card sono calcolati internamente dai dati Open-Meteo gia richiesti dall'app.
+
+Non sono allerte ufficiali della Protezione Civile o di MeteoAlarm: servono a evidenziare condizioni potenzialmente avverse in modo sintetico.
+
+La logica valuta:
+
+- codici Open-Meteo per grandine, temporali, pioggia intensa, pioggia gelata, neve e nebbia
+- probabilita di precipitazione alta nelle prossime ore o nei prossimi giorni
+- vento attuale almeno pari a 40 km/h
+- temperatura attuale o massima giornaliera almeno pari a 35 C
+- temperatura attuale o minima giornaliera pari o inferiore a 0 C
+
+Quando piu condizioni coincidono, viene mostrata una sola badge seguendo una priorita interna: grandine, temporali, pioggia intensa, pioggia gelata, neve, vento forte, caldo intenso, gelo, nebbia.
 
 ### Persistenza e Cache
 
@@ -324,6 +349,8 @@ Il layer API trasforma la risposta in una struttura piu stabile per la UI:
 
 Questo e il formato consumato dal layer UI.
 
+Gli avvisi `Allerta` non arrivano come campo dedicato dall'API: vengono derivati nel frontend dal payload normalizzato.
+
 ## Configurazione API
 
 In questo progetto non serve alcuna chiave API.
@@ -393,9 +420,13 @@ Nota importante:
 
 - `index.html`: struttura base della pagina e punto di ingresso dell'app nel browser
 - `css/styles.css`: stile completo dell'interfaccia, temi e responsive
-- `js/app.js`: coordinamento del flusso principale, ricerca, autocomplete, refresh e stato UI
+- `js/app.js`: bootstrap dell'app, lookup DOM e wiring dei controller
 - `js/api/weatherApi.js`: chiamate alle API meteo/geocoding, cache e normalizzazione dei dati
 - `js/runtime-env.js`: configurazione runtime generata automaticamente a partire da `.env`
+- `js/controllers/search-controller.js`: flusso ricerca, geolocalizzazione, refresh e rendering meteo
+- `js/controllers/autocomplete-controller.js`: stato e interazioni dei suggerimenti durante la digitazione
+- `js/controllers/favorites-controller.js`: stato, persistenza e rendering delle localita preferite
+- `js/features/weather/adverse.js`: regole per derivare le badge `Allerta` dai dati Open-Meteo normalizzati
 - `js/features/weather/maps.js`: mapping dei codici meteo in emoji e descrizioni
 - `js/features/weather/dates.js`: formatter per giorni e orari
 - `js/features/weather/units.js`: formatter per temperatura e vento
@@ -416,7 +447,8 @@ Nota importante:
 Per orientarti rapidamente nel codice:
 
 - `js/api/` contiene il layer di accesso alle API e la normalizzazione dei dati
-- `js/features/weather/` raccoglie formatter, mapping meteo e logica di tema
+- `js/controllers/` separa lo stato applicativo di ricerca, autocomplete e preferiti dal bootstrap
+- `js/features/weather/` raccoglie formatter, mapping meteo, avvisi previsionali e logica di tema
 - `js/shared/` contiene utility riusabili trasversali
 - `js/ui/` gestisce il rendering dell'interfaccia e degli stati
 - `tests/` raccoglie la suite Vitest per logica, API e DOM
